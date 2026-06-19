@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Repor palavra-passe — Prico</title>
+  <style>
+    :root { --green: #15803D; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6; color: #1a1a1a; max-width: 480px; margin: 0 auto; padding: 24px; }
+    h1 { color: var(--green); font-size: 1.4rem; }
+    label { display: block; font-weight: 600; margin-top: 16px; }
+    input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc;
+      border-radius: 8px; margin-top: 6px; }
+    button { width: 100%; margin-top: 20px; padding: 14px; font-size: 16px; font-weight: 600;
+      color: #fff; background: var(--green); border: 0; border-radius: 8px; cursor: pointer; }
+    button:disabled { opacity: .6; }
+    #status { background: #f0f7f1; border-left: 4px solid var(--green);
+      padding: 12px 16px; border-radius: 6px; margin: 12px 0; }
+    #msg { color: #c0392b; min-height: 1.2em; margin-top: 12px; }
+    footer { margin-top: 3em; color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Repor palavra-passe — Prico</h1>
+  <div id="status">A verificar o link…</div>
+
+  <form id="form" style="display:none">
+    <label>Nova palavra-passe
+      <input type="password" id="pw1" minlength="6" autocomplete="new-password" required />
+    </label>
+    <label>Confirmar palavra-passe
+      <input type="password" id="pw2" minlength="6" autocomplete="new-password" required />
+    </label>
+    <button type="submit" id="submit">Guardar nova palavra-passe</button>
+  </form>
+  <p id="msg"></p>
+
+  <footer>Prico — uma app da Tech Trinity Help.</footer>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://hwhcmclmnpgpnwpuvvgo.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_hYxgXG6cnoWpz8dHqiODtw_FwTlOMqN';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const statusEl = document.getElementById('status');
+    const form = document.getElementById('form');
+    const msg = document.getElementById('msg');
+
+    function fail(text) { statusEl.style.display = 'block'; form.style.display = 'none'; statusEl.textContent = text; }
+
+    // Erro vindo no próprio link (ex.: expirado)
+    const hashParams = new URLSearchParams(location.hash.slice(1));
+    const queryParams = new URLSearchParams(location.search);
+    const errDesc = hashParams.get('error_description') || queryParams.get('error_description');
+    if (errDesc) fail('O link não é válido ou expirou. Pede um novo na app (Esqueci-me da palavra-passe).');
+
+    let ready = false;
+    function showForm() {
+      if (ready) return; ready = true;
+      statusEl.style.display = 'none';
+      form.style.display = 'block';
+    }
+
+    // Quando a sessão de recuperação é estabelecida, mostra o formulário.
+    supabase.auth.onAuthStateChange((_event, session) => { if (session) showForm(); });
+
+    // Caso o link use o fluxo PKCE (?code=...), troca o código por sessão.
+    const code = queryParams.get('code');
+    if (code) {
+      supabase.auth.exchangeCodeForSession(location.href).then(({ error }) => {
+        if (error) fail('Link inválido ou expirado. Pede um novo na app.');
+      });
+    }
+
+    // Rede de segurança: ao fim de 1,5s verifica se já há sessão (link no #hash).
+    setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) showForm();
+      else if (!ready && !errDesc) fail('Link inválido ou expirado. Pede um novo na app.');
+    }, 1500);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      const pw1 = document.getElementById('pw1').value;
+      const pw2 = document.getElementById('pw2').value;
+      if (pw1.length < 6) { msg.textContent = 'A palavra-passe tem de ter pelo menos 6 caracteres.'; return; }
+      if (pw1 !== pw2) { msg.textContent = 'As palavras-passe não coincidem.'; return; }
+      document.getElementById('submit').disabled = true;
+      const { error } = await supabase.auth.updateUser({ password: pw1 });
+      if (error) { msg.textContent = 'Erro: ' + error.message; document.getElementById('submit').disabled = false; return; }
+      await supabase.auth.signOut();
+      statusEl.style.display = 'block';
+      statusEl.style.color = '#15803D';
+      statusEl.textContent = '✓ Palavra-passe alterada! Volta à app Prico e entra com a nova palavra-passe.';
+      form.style.display = 'none';
+      msg.textContent = '';
+    });
+  </script>
+</body>
+</html>
