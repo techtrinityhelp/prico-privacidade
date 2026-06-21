@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prico — Verificar EAN</title>
+  <style>
+    :root { --green:#15803D; --green2:#22C55E; --amber:#b45309; }
+    * { box-sizing:border-box; }
+    body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.5;
+      color:#1a1a1a; max-width:560px; margin:0 auto; padding:24px; }
+    h1 { color:var(--green); font-size:1.4rem; margin-bottom:4px; }
+    .sub { color:#666; font-size:.9rem; margin-top:0; }
+    .row { display:flex; gap:8px; margin-top:18px; }
+    input { flex:1; padding:14px; font-size:18px; border:1px solid #ccc; border-radius:10px; }
+    button { padding:14px 18px; font-size:16px; font-weight:600; color:#fff; background:var(--green);
+      border:0; border-radius:10px; cursor:pointer; }
+    button:active { opacity:.85; }
+    #result { margin-top:18px; padding:16px; border-radius:12px; display:none; }
+    #result.ok { background:#f0f7f1; border-left:5px solid var(--green); display:block; }
+    #result.no { background:#fff7ed; border-left:5px solid var(--amber); display:block; }
+    #result.err { background:#fef2f2; border-left:5px solid #c0392b; display:block; }
+    .pname { font-weight:700; font-size:1.1rem; }
+    .meta { color:#555; font-size:.95rem; margin-top:2px; }
+    .prices { margin-top:8px; font-size:.95rem; }
+    .prices span { display:inline-block; background:#e6f4ea; color:var(--green); border-radius:6px;
+      padding:2px 8px; margin:2px 4px 0 0; }
+    h2 { font-size:.85rem; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-top:28px; }
+    .hist { list-style:none; padding:0; margin:0; font-size:.95rem; }
+    .hist li { padding:6px 0; border-bottom:1px solid #eee; }
+    .hist .y { color:var(--green); font-weight:600; }
+    .hist .n { color:var(--amber); font-weight:600; }
+    .ean { color:#888; font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body>
+  <h1>Verificar EAN — Prico</h1>
+  <p class="sub">Cola um código de barras (EAN) e vê se o produto já existe na base.</p>
+
+  <div class="row">
+    <input id="ean" type="text" inputmode="numeric" placeholder="Cola o EAN aqui…" autofocus />
+    <button id="go">Verificar</button>
+  </div>
+
+  <div id="result"></div>
+
+  <h2>Verificados nesta sessão</h2>
+  <ul id="hist" class="hist"></ul>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://hwhcmclmnpgpnwpuvvgo.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_hYxgXG6cnoWpz8dHqiODtw_FwTlOMqN';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const inp = document.getElementById('ean');
+    const go = document.getElementById('go');
+    const res = document.getElementById('result');
+    const hist = document.getElementById('hist');
+
+    const euro = (c) => (c / 100).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+
+    function setResult(cls, html) { res.className = cls; res.innerHTML = html; }
+
+    // Bases abertas: comida -> beleza -> produtos gerais (fica com o 1.º que tem).
+    const OFF_HOSTS = ['world.openfoodfacts.org','world.openbeautyfacts.org','world.openproductsfacts.org'];
+    async function offLookup(ean) {
+      for (const h of OFF_HOSTS) {
+        try {
+          const r = await fetch('https://' + h + '/api/v2/product/' + ean + '.json?fields=product_name,product_name_pt,brands,quantity');
+          const j = await r.json();
+          if (j.status === 1 && j.product) {
+            const p = j.product;
+            const name = (p.product_name_pt || p.product_name || '').trim();
+            if (name) return { name, brand: (p.brands || '').split(',')[0].trim(), quantity: (p.quantity || '').trim() };
+          }
+        } catch {}
+      }
+      return null;
+    }
+
+    function addHist(ean, prod) {
+      const li = document.createElement('li');
+      li.innerHTML = prod
+        ? `<span class="y">✓ existe</span> · <span class="ean">${ean}</span> — ${prod.name}`
+        : `<span class="n">✗ não existe</span> · <span class="ean">${ean}</span>`;
+      hist.insertBefore(li, hist.firstChild);
+    }
+
+    async function check() {
+      const ean = (inp.value || '').replace(/\D/g, '');
+      if (ean.length < 8) { setResult('err', 'Escreve/cola um EAN com 8 a 13 dígitos.'); return; }
+      setResult('ok', 'A verificar…');
+      res.className = '';
+      res.style.display = 'block';
+      res.textContent = 'A verificar…';
+      try {
+        const { data: prod, error } = await sb.from('products').select('*').eq('ean', ean).maybeSingle();
+        if (error) throw error;
+        if (!prod) {
+          setResult('no', `⚠️ <b>Não existe ainda</b> — EAN <span class="ean">${ean}</span>. A identificar…`);
+          const off = await offLookup(ean);
+          const offTxt = off
+            ? `<div class="meta">Open Food Facts: <b>${off.name}</b>${off.brand ? ' · ' + off.brand : ''}${off.quantity ? ' · ' + off.quantity : ''}</div>`
+            : `<div class="meta">(não encontrado no Open Food Facts)</div>`;
+          setResult('no', `⚠️ <b>Não existe ainda</b> — EAN <span class="ean">${ean}</span>. Podes inserir.${offTxt}`);
+          addHist(ean, null);
+        } else {
+          const { data: prices } = await sb
+            .from('prices')
+            .select('amount_cents, chains(name)')
+            .eq('product_id', prod.id)
+            .eq('status', 'official');
+          const meta = [prod.brand, prod.quantity, prod.category].filter(Boolean).join(' · ');
+          let pricesHtml = '';
+          if (prices && prices.length) {
+            pricesHtml = '<div class="prices">' +
+              prices.sort((a, b) => a.amount_cents - b.amount_cents)
+                .map(p => `<span>${(p.chains && p.chains.name) || '—'}: ${euro(p.amount_cents)}</span>`).join('') +
+              '</div>';
+          } else {
+            pricesHtml = '<div class="prices" style="color:#888">Ainda sem preços.</div>';
+          }
+          setResult('ok', `✓ <b>Já existe</b><div class="pname">${prod.name}</div>` +
+            (meta ? `<div class="meta">${meta}</div>` : '') +
+            `<div class="meta ean">EAN: ${ean}</div>${pricesHtml}`);
+          addHist(ean, prod);
+        }
+      } catch (e) {
+        setResult('err', 'Erro: ' + (e.message || e));
+        inp.focus();
+        inp.select();
+        return;
+      }
+      inp.value = '';
+      inp.focus();
+    }
+
+    go.addEventListener('click', check);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') check(); });
+    inp.focus();
+  </script>
+</body>
+</html>
