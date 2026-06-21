@@ -135,7 +135,7 @@
       const { data: prod } = await sb.from('products').select('*').eq('ean',ean).maybeSingle();
       if(prod){
         existing=prod; fill(prod);
-        showStatus('ok', '✓ <b>Já existe na Prico:</b> '+prod.name+'. Adiciona só preços novos (não duplica).');
+        showStatus('ok', '✓ <b>Já existe na Prico:</b> '+prod.name+'. Podes corrigir os dados e/ou adicionar preços — atualiza, não duplica.');
       } else {
         const off=await offLookup(ean);
         if(off){ fill({...off, category: guessCat(off.name)}); showStatus('no','🆕 Novo. Identificado nas bases abertas: <b>'+off.name+'</b>. Confirma e adiciona.'); }
@@ -155,8 +155,17 @@
       const category=$('cat').value||null;
       $('add').disabled=true;
       try{
+        const wasExisting = !!existing;
         let productId;
-        if(existing){ productId=existing.id; }
+        if(existing){
+          // Já existe -> ATUALIZA os dados (por id, sem duplicar) com o formulário.
+          productId=existing.id;
+          const { error: ue } = await sb.from('products').update({
+            name, brand, quantity, category, ean,
+            pack_units: derivePackUnits(quantity), search_norm: searchNorm(name,brand)
+          }).eq('id', productId);
+          if(ue) throw ue;
+        }
         else {
           const { data: match } = await sb.from('products').select('id,name').ilike('name',name);
           const exact=(match||[]).find(p=>p.name.toLowerCase()===name.toLowerCase());
@@ -188,8 +197,9 @@
           }
         }
         const extra=(n?(' · '+n+' preço'+(n>1?'s':'')):'')+(np?(' · '+np+' promo'):'');
-        $('msg').className='ok2'; $('msg').textContent='✓ Adicionado: '+name+extra;
-        const li=document.createElement('li'); li.innerHTML='✓ '+name+extra+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
+        const verb = wasExisting ? 'Atualizado' : 'Adicionado';
+        $('msg').className='ok2'; $('msg').textContent='✓ '+verb+': '+name+extra;
+        const li=document.createElement('li'); li.innerHTML='✓ '+verb+': '+name+extra+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
         // limpar
         $('ean').value=''; $('form').style.display='none'; $('status').className=''; $('status').style.display='none';
         for(const i of [1,2,3]){ $('chain'+i).value=''; $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
