@@ -127,22 +127,61 @@
     const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
     function guessCat(name){ const n=deburr(name); for(const [k,c] of CATKW) if(n.includes(k)) return c; return ''; }
 
+    const euro = (c) => (c/100).toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
+
+    async function pricesFor(productId){
+      const { data } = await sb.from('prices').select('amount_cents, chains(name)').eq('product_id',productId).eq('status','official');
+      if(!data || !data.length) return '<div style="margin-top:6px;color:#555">Sem preços na app ainda.</div>';
+      const list = data.sort((a,b)=>a.amount_cents-b.amount_cents).map(p=>((p.chains&&p.chains.name)||'?')+' '+euro(p.amount_cents)).join(' · ');
+      return '<div style="margin-top:6px;color:#555"><b>Preços na app:</b> '+list+'</div>';
+    }
+
+    async function searchByName(name){
+      const words = deburr(name).split(/\s+/).filter(w=>w.length>=4).slice(0,4);
+      if(!words.length) return [];
+      let q = sb.from('products').select('id,name,brand,quantity,category,ean').limit(5);
+      for(const w of words) q = q.ilike('search_norm','%'+w.replace(/[%,()]/g,' ')+'%');
+      const { data } = await q;
+      return data || [];
+    }
+
+    async function pickExisting(d){
+      existing=d; fill(d);
+      const pr = await pricesFor(d.id);
+      showStatus('ok','✓ Selecionado: <b>'+d.name+'</b>. Ao guardar, ATUALIZA este (e cola-lhe o EAN) — sem duplicar.'+pr);
+    }
+    window.__pick = pickExisting;
+
     async function lookup(){
       const ean=($('ean').value||'').replace(/\D/g,'');
-      existing=null;
+      existing=null; window._dups=[];
       if(ean.length<8){ showStatus('err','EAN inválido (8 a 13 dígitos).'); $('form').style.display='none'; return; }
       showStatus('ok','A procurar…');
+      // 1) já existe na Prico por EAN?
       const { data: prod } = await sb.from('products').select('*').eq('ean',ean).maybeSingle();
       if(prod){
         existing=prod; fill(prod);
-        showStatus('ok', '✓ <b>Já existe na Prico:</b> '+prod.name+'. Podes corrigir os dados e/ou adicionar preços — atualiza, não duplica.');
-      } else {
-        const off=await offLookup(ean);
-        if(off){ fill({...off, category: guessCat(off.name)}); showStatus('no','🆕 Novo. Identificado nas bases abertas: <b>'+off.name+'</b>. Confirma e adiciona.'); }
-        else { fill({name:'',brand:'',quantity:'',category:''}); showStatus('no','🆕 Novo (não encontrado nas bases abertas). Preenche à mão.'); }
+        const pr = await pricesFor(prod.id);
+        showStatus('ok','✓ <b>Já existe na Prico</b> (por EAN): '+prod.name+'. Podes corrigir e/ou adicionar preços — atualiza, não duplica.'+pr);
+        $('form').style.display='block'; $('name').focus(); return;
       }
-      $('form').style.display='block';
-      $('name').focus();
+      // 2) sem EAN na app -> identificar nas bases abertas
+      const off=await offLookup(ean);
+      const offName = off ? off.name : '';
+      if(off) fill({...off, category: guessCat(off.name)});
+      else fill({name:'',brand:'',quantity:'',category:''});
+      // 3) procurar por NOME possíveis existentes (que estejam sem EAN)
+      const dups = offName ? await searchByName(offName) : [];
+      if(dups.length){
+        window._dups=dups;
+        const links = dups.map((d,i)=>'<a href="#" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+d.name+'</a>').join(' · ');
+        showStatus('no', (off?('🆕 Identificado: <b>'+offName+'</b>.<br>'):'')+
+          '⚠️ <b>Pode já existir</b> (sem EAN): '+links+
+          '<br><span style="color:#555">Se for um destes, clica para o atualizar (cola-lhe o EAN). Senão, é mesmo novo.</span>');
+      } else {
+        showStatus('no', off ? ('🆕 Novo. Identificado: <b>'+offName+'</b>. Confirma e adiciona.') : '🆕 Novo (não encontrado nas bases abertas). Preenche à mão.');
+      }
+      $('form').style.display='block'; $('name').focus();
     }
 
     async function addProduct(){
