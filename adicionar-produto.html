@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prico — Adicionar produto</title>
+  <style>
+    :root { --green:#15803D; --green2:#22C55E; --amber:#b45309; }
+    * { box-sizing:border-box; }
+    body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.5;
+      color:#1a1a1a; max-width:620px; margin:0 auto; padding:24px; }
+    h1 { color:var(--green); font-size:1.4rem; margin-bottom:2px; }
+    .sub { color:#666; font-size:.9rem; margin-top:0; }
+    label { display:block; font-weight:600; margin-top:12px; font-size:.92rem; }
+    input, select { width:100%; padding:11px; font-size:16px; border:1px solid #ccc; border-radius:9px; margin-top:4px; }
+    .row2 { display:flex; gap:10px; }
+    .row2 > div { flex:1; }
+    button { padding:13px 18px; font-size:16px; font-weight:600; color:#fff; background:var(--green);
+      border:0; border-radius:9px; cursor:pointer; margin-top:16px; }
+    button.sec { background:#666; }
+    button:disabled { opacity:.5; }
+    #status { margin-top:12px; padding:12px; border-radius:10px; display:none; font-size:.95rem; }
+    #status.ok { background:#f0f7f1; border-left:4px solid var(--green); display:block; }
+    #status.no { background:#fff7ed; border-left:4px solid var(--amber); display:block; }
+    #status.err { background:#fef2f2; border-left:4px solid #c0392b; display:block; }
+    #msg { margin-top:12px; font-weight:600; }
+    .ok2 { color:var(--green); } .err2 { color:#c0392b; }
+    #form, #app { display:none; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; font-size:.85rem; color:#666; }
+    .topbar button { margin:0; padding:6px 12px; font-size:.85rem; }
+    h2 { font-size:.8rem; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-top:26px; }
+    .hist { list-style:none; padding:0; margin:0; font-size:.92rem; }
+    .hist li { padding:5px 0; border-bottom:1px solid #eee; }
+    .ean { color:#888; font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body>
+  <h1>Adicionar produto — Prico</h1>
+  <p class="sub">Cola o EAN do site do supermercado, confirma os dados e adiciona à base.</p>
+
+  <!-- LOGIN -->
+  <div id="login">
+    <label>Email (conta de moderador)<input id="email" type="email" autocomplete="username" /></label>
+    <label>Palavra-passe<input id="pass" type="password" autocomplete="current-password" /></label>
+    <button id="entrar">Entrar</button>
+    <div id="loginErr" class="err2" style="margin-top:8px"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="topbar">
+      <span id="who"></span>
+      <button class="sec" id="sair">Sair</button>
+    </div>
+
+    <label>EAN (código de barras) — cola e Enter
+      <input id="ean" type="text" inputmode="numeric" placeholder="Cola o EAN aqui…" autofocus />
+    </label>
+    <div id="status"></div>
+
+    <div id="form">
+      <label>Nome<input id="name" type="text" /></label>
+      <div class="row2">
+        <div><label>Marca<input id="brand" type="text" /></label></div>
+        <div><label>Quantidade<input id="qty" type="text" placeholder="1 L · 500 g · 4 x 200 ml" /></label></div>
+      </div>
+      <label>Categoria
+        <select id="cat"></select>
+      </label>
+      <div class="row2">
+        <div><label>Cadeia (opcional)<select id="chain"></select></label></div>
+        <div><label>Preço (opcional)<input id="price" type="text" placeholder="1,29" /></label></div>
+      </div>
+      <button id="add">＋ Adicionar à base</button>
+      <div id="msg"></div>
+    </div>
+
+    <h2>Adicionados nesta sessão</h2>
+    <ul id="hist" class="hist"></ul>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://hwhcmclmnpgpnwpuvvgo.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_hYxgXG6cnoWpz8dHqiODtw_FwTlOMqN';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const CATEGORIES = ['Mercearia','Fruta e legumes','Talho (carne)','Peixaria (peixe)','Charcutaria','Queijos','Laticínios e ovos','Iogurtes e sobremesas','Padaria e pastelaria','Congelados','Refeições prontas','Bolachas e cereais','Snacks e aperitivos','Doçaria e chocolates','Águas','Refrigerantes e sumos','Café, chá e infusões','Bebidas alcoólicas e garrafeira','Bio e saudável','Higiene e beleza','Limpeza do lar','Bebé','Animais','Casa e bazar','Outra'];
+
+    // ---- helpers (espelham db.ts) ----
+    const deburr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const searchNorm = (n,b) => deburr((n||'')+' '+(b||'')).replace(/\s+/g,' ').trim();
+    const VOL={ml:1,cl:10,dl:100,l:1000,lt:1000}, WEI={g:1,gr:1,kg:1000};
+    const COUNTW=['un','unid','unidade','unidades','rolo','rolos','capsula','capsulas','saqueta','saquetas','dose','doses','ovo','ovos','pastilha','pastilhas'];
+    function derivePackUnits(q){ if(!q) return null; const raw=deburr(q.trim()); if(!raw) return null; let pu=1,rest=raw; const pm=raw.match(/^(\d+)\s*[x*]\s*(.+)$/); if(pm){pu=parseInt(pm[1],10)||1;rest=pm[2].trim();} const mm=rest.match(/(\d+(?:[.,]\d+)?)\s*(ml|cl|dl|lt|l|kg|gr|g)\b/); if(mm) return pu>1?pu:null; const cm=rest.match(/(\d+)\s*([a-z]+)?/); if(cm){const w=cm[2]||''; if(!w||COUNTW.includes(w)){const t=(parseInt(cm[1],10)||1)*pu; return t>1?t:null;}} return pu>1?pu:null; }
+    function parsePriceToCents(t){ if(t==null||t==='') return null; const v=Number(String(t).replace(',','.').trim()); return (isFinite(v)&&v>0)?Math.round(v*100):null; }
+
+    const $ = (id) => document.getElementById(id);
+    let chains = []; let user = null; let existing = null;
+
+    async function offLookup(ean){
+      try{
+        const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,brands,quantity');
+        const j=await r.json(); if(j.status!==1||!j.product) return null;
+        const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(!name) return null;
+        return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() };
+      }catch{ return null; }
+    }
+
+    function showStatus(cls, html){ $('status').className=cls; $('status').innerHTML=html; }
+
+    // Preenche o formulário a partir de um produto (Prico ou Open Food Facts)
+    function fill(o){ $('name').value=o.name||''; $('brand').value=o.brand||''; $('qty').value=o.quantity||''; $('cat').value=o.category||''; }
+
+    async function lookup(){
+      const ean=($('ean').value||'').replace(/\D/g,'');
+      existing=null;
+      if(ean.length<8){ showStatus('err','EAN inválido (8 a 13 dígitos).'); $('form').style.display='none'; return; }
+      showStatus('ok','A procurar…');
+      // 1) já existe na Prico?
+      const { data: prod } = await sb.from('products').select('*').eq('ean',ean).maybeSingle();
+      if(prod){
+        existing=prod;
+        fill(prod);
+        showStatus('ok', '✓ <b>Já existe na Prico:</b> '+prod.name+'. Podes só adicionar um preço novo (não cria duplicado).');
+      } else {
+        const off=await offLookup(ean);
+        if(off){ fill({...off, category: guessCat(off.name)}); showStatus('no','🆕 Novo. Identificado no <b>Open Food Facts</b>: '+off.name+'. Confirma e adiciona.'); }
+        else { fill({name:'',brand:'',quantity:'',category:''}); showStatus('no','🆕 Novo (não está no Open Food Facts). Preenche os dados à mão.'); }
+      }
+      $('form').style.display='block';
+      $('name').focus();
+    }
+
+    // adivinha simples de categoria pelo nome
+    const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
+    function guessCat(name){ const n=deburr(name); for(const [k,c] of CATKW) if(n.includes(k)) return c; return ''; }
+
+    async function addProduct(){
+      $('msg').textContent='';
+      const name=$('name').value.trim();
+      if(name.length<2){ $('msg').className='err2'; $('msg').textContent='Escreve o nome.'; return; }
+      const ean=($('ean').value||'').replace(/\D/g,'')||null;
+      const brand=$('brand').value.trim()||null;
+      const quantity=$('qty').value.trim()||null;
+      const category=$('cat').value||null;
+      const chainId=$('chain').value||null;
+      const cents=parsePriceToCents($('price').value);
+      $('add').disabled=true;
+      try{
+        let productId;
+        if(existing){ productId=existing.id; }
+        else {
+          // reconciliar por nome exato antes de criar
+          const { data: match } = await sb.from('products').select('id,name').ilike('name',name);
+          const exact=(match||[]).find(p=>p.name.toLowerCase()===name.toLowerCase());
+          if(exact){ productId=exact.id; }
+          else {
+            const { data: created, error } = await sb.from('products').insert({
+              ean, name, brand, quantity, category,
+              pack_units: derivePackUnits(quantity), search_norm: searchNorm(name,brand),
+              status:'confirmed', created_by: user.id
+            }).select('id').single();
+            if(error) throw error; productId=created.id;
+          }
+        }
+        let priceTxt='';
+        if(chainId && cents!==null){
+          const { error: pe } = await sb.rpc('report_price', { p_product_id:productId, p_chain_id:chainId, p_amount_cents:cents, p_region:'nacional' });
+          if(pe) throw pe; priceTxt=' + preço';
+        }
+        $('msg').className='ok2'; $('msg').textContent='✓ Adicionado: '+name+priceTxt;
+        const li=document.createElement('li'); li.innerHTML='✓ '+name+(priceTxt?' '+priceTxt:'')+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
+        // limpar para o próximo
+        $('ean').value=''; $('form').style.display='none'; $('status').className=''; $('status').style.display='none';
+        $('price').value=''; existing=null; $('ean').focus();
+      }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
+      $('add').disabled=false;
+    }
+
+    async function enterApp(){
+      const { data:{ session } } = await sb.auth.getSession();
+      if(!session){ $('login').style.display='block'; $('app').style.display='none'; return; }
+      user=session.user;
+      $('login').style.display='none'; $('app').style.display='block';
+      $('who').textContent='Sessão: '+user.email;
+      // categorias
+      $('cat').innerHTML='<option value="">— categoria —</option>'+CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
+      // cadeias
+      const { data:ch } = await sb.from('chains').select('id,name').order('name');
+      chains=ch||[];
+      $('chain').innerHTML='<option value="">— sem cadeia —</option>'+chains.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
+      $('ean').focus();
+    }
+
+    $('entrar').addEventListener('click', async ()=>{
+      $('loginErr').textContent='';
+      const { error } = await sb.auth.signInWithPassword({ email:$('email').value.trim(), password:$('pass').value });
+      if(error){ $('loginErr').textContent='Login falhou: '+error.message; return; }
+      enterApp();
+    });
+    $('pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('entrar').click(); });
+    $('sair').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+    $('ean').addEventListener('keydown', e=>{ if(e.key==='Enter') lookup(); });
+    $('add').addEventListener('click', addProduct);
+
+    enterApp();
+  </script>
+</body>
+</html>
