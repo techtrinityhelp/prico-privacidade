@@ -240,7 +240,7 @@
         $('msg').className='ok2'; $('msg').textContent='✓ '+verb+': '+name+extra;
         const li=document.createElement('li'); li.innerHTML='✓ '+verb+': '+name+extra+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
         // limpar
-        $('ean').value=''; $('form').style.display='none'; $('status').className=''; $('status').style.display='none';
+        $('ean').value=''; $('form').style.display='none'; $('status').className='';
         for(const i of [1,2,3]){ $('chain'+i).value=''; $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
         existing=null; $('ean').focus();
       }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
