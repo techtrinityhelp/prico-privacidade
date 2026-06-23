@@ -38,7 +38,7 @@
 </head>
 <body>
   <h1>Adicionar produto — Prico</h1>
-  <p class="sub">Cola o EAN do site do supermercado, confirma os dados e adiciona à base.</p>
+  <p class="sub">Cola o EAN do site do supermercado <b>ou</b> usa «Inserir sem EAN» (marcas próprias: Hacendado, Lidl…). Confirma os dados e adiciona à base.</p>
 
   <div id="login">
     <label>Email (conta de moderador)<input id="email" type="email" autocomplete="username" /></label>
@@ -56,6 +56,7 @@
     <label>EAN (código de barras) — cola e Enter
       <input id="ean" type="text" inputmode="numeric" placeholder="Cola o EAN aqui…" autofocus />
     </label>
+    <button class="sec" id="semEan" style="margin-top:8px;padding:9px 14px;font-size:.9rem">✍️ Inserir sem EAN (à mão)</button>
     <div id="status"></div>
 
     <div id="form">
@@ -110,15 +111,19 @@
 
     // Tenta as 3 bases abertas: comida -> beleza -> produtos gerais.
     const OFF_HOSTS = ['world.openfoodfacts.org','world.openbeautyfacts.org','world.openproductsfacts.org'];
-    async function offLookup(ean){
-      for(const h of OFF_HOSTS){
-        try{
-          const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,brands,quantity');
-          const j=await r.json();
-          if(j.status===1 && j.product){ const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(name) return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
-        }catch{}
-      }
+    async function offHost(h, ean){
+      try{
+        const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),4000);
+        const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,brands,quantity',{signal:ctrl.signal});
+        clearTimeout(t);
+        const j=await r.json();
+        if(j.status===1 && j.product){ const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(name) return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
+      }catch{ /* timeout/CORS/erro */ }
       return null;
+    }
+    async function offLookup(ean){
+      const res = await Promise.all(OFF_HOSTS.map(h=>offHost(h,ean)));
+      return res.find(r=>r) || null; // prefere comida (1.ª da lista)
     }
 
     function showStatus(cls, html){ $('status').className=cls; $('status').innerHTML=html; }
@@ -152,11 +157,46 @@
     }
     window.__pick = pickExisting;
 
+    // Inserir SEM EAN: abre o formulário em branco. A rede anti-duplicado passa a
+    // ser a procura por nome (ver onNameInput) — clica numa sugestão para atualizar.
+    function manualStart(){
+      existing=null; window._dups=[];
+      $('ean').value='';
+      fill({name:'',brand:'',quantity:'',category:''});
+      showStatus('no','✍️ <b>Sem EAN.</b> Escreve o nome — procuro parecidos para não duplicares. Escolhe a cadeia e o preço e adiciona.');
+      $('form').style.display='block';
+      $('name').focus();
+    }
+
+    // Enquanto escreves o NOME (e não há EAN), procura produtos parecidos. Escrever
+    // = produto novo; clicar numa sugestão = atualizar o existente (sem duplicar).
+    let nameT=null;
+    async function onNameInput(){
+      const ean=($('ean').value||'').replace(/\D/g,'');
+      if(ean.length>=8) return;          // o fluxo por EAN já trata da reconciliação
+      existing=null;                     // a escrever = novo (clica numa sugestão p/ atualizar)
+      const name=$('name').value.trim();
+      clearTimeout(nameT);
+      if(name.length<4){ return; }
+      nameT=setTimeout(async ()=>{
+        if(($('name').value||'').trim()!==name) return; // mudou entretanto
+        const dups=await searchByName(name);
+        window._dups=dups;
+        if(dups.length){
+          const links=dups.map((d,i)=>'<a href="#" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+d.name+(d.ean?'':' (sem EAN)')+'</a>').join(' · ');
+          showStatus('no','⚠️ <b>Pode já existir</b>: '+links+'<br><span style="color:#555">É um destes? Clica para atualizar. Senão, continua e adiciona como novo.</span>');
+        } else {
+          showStatus('no','✍️ Sem parecidos — parece novo. Confirma e adiciona.');
+        }
+      }, 350);
+    }
+
     async function lookup(){
       const ean=($('ean').value||'').replace(/\D/g,'');
       existing=null; window._dups=[];
       if(ean.length<8){ showStatus('err','EAN inválido (8 a 13 dígitos).'); $('form').style.display='none'; return; }
       showStatus('ok','A procurar…');
+      try {
       // 1) já existe na Prico por EAN?
       const { data: prod } = await sb.from('products').select('*').eq('ean',ean).maybeSingle();
       if(prod){
@@ -182,6 +222,10 @@
         showStatus('no', off ? ('🆕 Novo. Identificado: <b>'+offName+'</b>. Confirma e adiciona.') : '🆕 Novo (não encontrado nas bases abertas). Preenche à mão.');
       }
       $('form').style.display='block'; $('name').focus();
+      } catch(e){
+        showStatus('err','Erro a procurar: '+(e.message||e)+'. Preenche à mão e adiciona.');
+        $('form').style.display='block';
+      }
     }
 
     async function addProduct(){
@@ -270,6 +314,8 @@
     $('pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('entrar').click(); });
     $('sair').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
     $('ean').addEventListener('keydown', e=>{ if(e.key==='Enter') lookup(); });
+    $('semEan').addEventListener('click', manualStart);
+    $('name').addEventListener('input', onNameInput);
     $('add').addEventListener('click', addProduct);
 
     enterApp();
