@@ -102,6 +102,29 @@
 
     const deburr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     const searchNorm = (n,b) => deburr((n||'')+' '+(b||'')).replace(/\s+/g,' ').trim();
+
+    // Capitalização "à portuguesa": 1ª letra de cada palavra em maiúscula, mas
+    // ligações (de, da, com, sem…) em minúscula, UHT/BIO em maiúsculas e as
+    // unidades (g, kg, ml…) e quantidades (1L, 4x125g) intactas.
+    const SMALLW=['de','da','do','das','dos','e','com','sem','a','o','os','as','em','para','ao','à','no','na','nos','nas'];
+    const UNITW=['g','kg','mg','gr','ml','cl','dl','l','lt','un','und','unid','oz'];
+    function titleCasePT(s){
+      if(!s) return s;
+      return s.trim().replace(/\s+/g,' ').split(' ').map((w,i)=>{
+        if(/\d/.test(w)) return w;
+        const d=deburr(w);
+        if(UNITW.includes(d)) return w.toLowerCase();
+        if(d==='uht') return 'UHT';
+        if(d==='bio') return 'BIO';
+        if(i>0 && SMALLW.includes(d)) return w.toLowerCase();
+        return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+      }).join(' ');
+    }
+    function isAllLower(s){ const L=s.replace(/[^A-Za-zÀ-ÿ]/g,''); return L.length>0 && s===s.toLowerCase(); }
+    function isAllUpper(s){ const L=s.replace(/[^A-Za-zÀ-ÿ]/g,''); return L.length>3 && s===s.toUpperCase(); }
+    // Nome: só capitaliza se vier TODO em minúsculas/maiúsculas (senão respeita
+    // as maiúsculas que já lá estão, ex. "Polpa De Tomate").
+    function fixName(v){ v=(v||'').trim(); return (v && (isAllLower(v)||isAllUpper(v))) ? titleCasePT(v) : v; }
     const COUNTW=['un','unid','unidade','unidades','rolo','rolos','capsula','capsulas','saqueta','saquetas','dose','doses','ovo','ovos','pastilha','pastilhas'];
     function derivePackUnits(q){ if(!q) return null; const raw=deburr(q.trim()); if(!raw) return null; let pu=1,rest=raw; const pm=raw.match(/^(\d+)\s*[x*]\s*(.+)$/); if(pm){pu=parseInt(pm[1],10)||1;rest=pm[2].trim();} const mm=rest.match(/(\d+(?:[.,]\d+)?)\s*(ml|cl|dl|lt|l|kg|gr|g)\b/); if(mm) return pu>1?pu:null; const cm=rest.match(/(\d+)\s*([a-z]+)?/); if(cm){const w=cm[2]||''; if(!w||COUNTW.includes(w)){const t=(parseInt(cm[1],10)||1)*pu; return t>1?t:null;}} return pu>1?pu:null; }
     function parsePriceToCents(t){ if(t==null||t==='') return null; const v=Number(String(t).replace(',','.').trim()); return (isFinite(v)&&v>0)?Math.round(v*100):null; }
@@ -230,10 +253,11 @@
 
     async function addProduct(){
       $('msg').textContent='';
-      const name=$('name').value.trim();
+      const name=fixName($('name').value);
       if(name.length<2){ $('msg').className='err2'; $('msg').textContent='Escreve o nome.'; return; }
+      $('name').value=name;
       const ean=($('ean').value||'').replace(/\D/g,'')||null;
-      const brand=$('brand').value.trim()||null;
+      const brand=titleCasePT($('brand').value.trim())||null;
       const quantity=$('qty').value.trim()||null;
       const category=$('cat').value||null;
       $('add').disabled=true;
@@ -316,6 +340,10 @@
     $('ean').addEventListener('keydown', e=>{ if(e.key==='Enter') lookup(); });
     $('semEan').addEventListener('click', manualStart);
     $('name').addEventListener('input', onNameInput);
+    $('name').addEventListener('blur', ()=>{ $('name').value = fixName($('name').value); });
+    $('brand').addEventListener('blur', ()=>{ $('brand').value = titleCasePT($('brand').value); });
+    $('name').addEventListener('paste', ()=> setTimeout(()=>{ $('name').value = fixName($('name').value); }, 0));
+    $('brand').addEventListener('paste', ()=> setTimeout(()=>{ $('brand').value = titleCasePT($('brand').value); }, 0));
     $('add').addEventListener('click', addProduct);
 
     enterApp();
