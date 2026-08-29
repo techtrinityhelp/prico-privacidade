@@ -56,10 +56,14 @@
     <label>EAN (código de barras) — cola e Enter
       <input id="ean" type="text" inputmode="numeric" placeholder="Cola o EAN aqui…" autofocus />
     </label>
+    <div id="eanAviso" style="display:none;margin-top:6px;color:#b45309;font-size:.9rem">⚠️ Este código não confere — vê se algum número está trocado.</div>
     <button class="sec" id="semEan" style="margin-top:8px;padding:9px 14px;font-size:.9rem">✍️ Inserir sem EAN (à mão)</button>
     <div id="status"></div>
 
     <div id="form">
+      <label>Colar titulo da loja (Auchan, Continente...) — separa sozinho
+        <input id="titulo" type="text" placeholder="ex.: Leite UHT Meio Gordo Mimosa 1 L" />
+      </label>
       <label>Nome<input id="name" type="text" /></label>
       <div class="row2">
         <div><label>Marca<input id="brand" type="text" /></label></div>
@@ -98,7 +102,7 @@
     const SUPABASE_KEY = 'sb_publishable_hYxgXG6cnoWpz8dHqiODtw_FwTlOMqN';
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const CATEGORIES = ['Mercearia','Fruta e legumes','Talho (carne)','Peixaria (peixe)','Charcutaria','Queijos','Laticínios e ovos','Iogurtes e sobremesas','Padaria e pastelaria','Congelados','Refeições prontas','Bolachas e cereais','Snacks e aperitivos','Doçaria e chocolates','Águas','Refrigerantes e sumos','Café, chá e infusões','Bebidas alcoólicas e garrafeira','Bio e saudável','Higiene e beleza','Limpeza do lar','Bebé','Animais','Casa e bazar','Outra'];
+    const CATEGORIES = ['Mercearia','Fruta e legumes','Talho (carne)','Peixaria (peixe)','Charcutaria','Queijos','Laticínios e ovos','Bebidas vegetais','Iogurtes e sobremesas','Padaria e pastelaria','Congelados','Refeições prontas','Bolachas e cereais','Snacks e aperitivos','Doçaria e chocolates','Águas','Refrigerantes e sumos','Café, chá e infusões','Bebidas alcoólicas e garrafeira','Higiene e beleza','Limpeza do lar','Bebé','Animais','Casa e bazar','Outra'];
 
     const deburr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     const searchNorm = (n,b) => deburr((n||'')+' '+(b||'')).replace(/\s+/g,' ').trim();
@@ -127,13 +131,91 @@
     function fixName(v){ v=(v||'').trim(); return (v && (isAllLower(v)||isAllUpper(v))) ? titleCasePT(v) : v; }
     const COUNTW=['un','unid','unidade','unidades','rolo','rolos','capsula','capsulas','saqueta','saquetas','dose','doses','ovo','ovos','pastilha','pastilhas'];
     function derivePackUnits(q){ if(!q) return null; const raw=deburr(q.trim()); if(!raw) return null; let pu=1,rest=raw; const pm=raw.match(/^(\d+)\s*[x*]\s*(.+)$/); if(pm){pu=parseInt(pm[1],10)||1;rest=pm[2].trim();} const mm=rest.match(/(\d+(?:[.,]\d+)?)\s*(ml|cl|dl|lt|l|kg|gr|g)\b/); if(mm) return pu>1?pu:null; const cm=rest.match(/(\d+)\s*([a-z]+)?/); if(cm){const w=cm[2]||''; if(!w||COUNTW.includes(w)){const t=(parseInt(cm[1],10)||1)*pu; return t>1?t:null;}} return pu>1?pu:null; }
-    function parsePriceToCents(t){ if(t==null||t==='') return null; const v=Number(String(t).replace(',','.').trim()); return (isFinite(v)&&v>0)?Math.round(v*100):null; }
+    function parsePriceToCents(t){ if(t==null||t==='') return null; const limpo=String(t).replace(/[^0-9.,]/g,'').replace(',','.').trim(); const v=Number(limpo); return (isFinite(v)&&v>0)?Math.round(v*100):null; }
+
+
+    // --- Digito de controlo do codigo de barras (apanha numeros mal copiados) ---
+    function gtinChecksumOk(code){
+      const d=String(code||'').replace(/\D/g,'');
+      if(![8,12,13,14].includes(d.length)) return false;
+      const dig=d.split('').map(Number); const check=dig.pop();
+      const soma=dig.reverse().reduce((a,n,i)=>a+n*(i%2===0?3:1),0);
+      return (10-(soma%10))%10===check;
+    }
+
+    // --- Adivinhar categoria pelo NOME (mesma logica da app: palavras inteiras,
+    //     nunca pedacos de texto, senao "oriGINal" virava bebida alcoolica) ---
+    const CAT_KW = [
+      [['agua','aguas'],'Águas'],
+      [['sumo','sumos','refrigerante','refrigerantes','cola','pepsi','compal','nectar'],'Refrigerantes e sumos'],
+      [['cafe','cha','infusao','infusoes','capsulas'],'Café, chá e infusões'],
+      [['vinho','vinhos','cerveja','cervejas','whisky','gin','licor','vodka','sidra'],'Bebidas alcoólicas e garrafeira'],
+      [['leite','manteiga','ovos','natas','queijo','queijos'],'Laticínios e ovos'],
+      [['iogurte','iogurtes','pudim','gelatina','kefir'],'Iogurtes e sobremesas'],
+      [['fiambre','chourico','presunto','salsichas','mortadela','paio'],'Charcutaria'],
+      [['pao','bolo','bolos','croissant','baguete','broa','donut'],'Padaria e pastelaria'],
+      [['bolacha','bolachas','cereais','flocos','tostas','muesli','granola','aveia'],'Bolachas e cereais'],
+      [['chocolate','gomas','bombom','bombons','caramelos'],'Doçaria e chocolates'],
+      [['gelado','gelados','congelado','congelados'],'Congelados'],
+      [['batatas','snack','snacks','aperitivos','pipocas','tortitas'],'Snacks e aperitivos'],
+      [['pizza','lasanha','refeicao','sandes','wraps'],'Refeições prontas'],
+      [['arroz','massa','massas','azeite','oleo','farinha','acucar','sal','atum','conserva'],'Mercearia'],
+      [['detergente','lixivia','amaciador','limpeza'],'Limpeza do lar'],
+      [['champo','shampoo','sabonete','desodorizante','pasta'],'Higiene e beleza'],
+      [['fralda','fraldas'],'Bebé'], [['racao'],'Animais'],
+    ];
+    function guessCategory(nome){
+      const palavras = deburr(nome||'').split(/[^a-z0-9]+/).filter(Boolean);
+      for(const [chaves,cat] of CAT_KW){ if(palavras.some(w=>chaves.includes(w))) return cat; }
+      return '';
+    }
+
+    // --- Marcas ja existentes na base, para separar o titulo colado ---
+    let MARCAS = new Set();
+    async function carregarMarcas(){
+      const vistas=new Set();
+      for(let f=0;;f+=1000){
+        const { data } = await sb.from('products').select('brand').range(f,f+999);
+        if(!data || !data.length) break;
+        data.forEach(r=>{ if(r.brand && r.brand.trim()) vistas.add(deburr(r.brand.trim())); });
+        if(data.length<1000) break;
+      }
+      MARCAS = vistas;
+    }
+
+    /* Separa um titulo copiado da loja em nome / marca / quantidade.
+       Ex.: "Leite UHT Meio Gordo Mimosa 1 L" -> nome "Leite UHT Meio Gordo",
+            marca "Mimosa", quantidade "1 L". A marca so e separada se JA existir
+            na base (senao ficava a adivinhar). */
+    function separarTitulo(t){
+      let s=(t||'').replace(/\s+/g,' ').trim();
+      if(!s) return null;
+      s = s.replace(/\s*\d+[.,]\d{2}\s*€?\s*$/,'').trim();          // preco colado no fim
+      let qty='';
+      const qm = s.match(/((?:\d+\s*[x×]\s*)?\d+(?:[.,]\d+)?\s*(?:kg|gr|g|mg|ml|cl|dl|lt|l|un|unid|unidades)\b\.?)\s*$/i);
+      if(qm){ qty=qm[1].replace(/\.$/,'').trim(); s=s.slice(0,qm.index).trim(); }
+      let brand='';
+      let palavras=s.split(' ');
+      for(let n=3;n>=1;n--){                                          // marca no FIM
+        if(palavras.length<=n) continue;
+        const cand=palavras.slice(-n).join(' ');
+        if(MARCAS.has(deburr(cand))){ brand=cand; palavras=palavras.slice(0,-n); break; }
+      }
+      if(!brand){
+        for(let n=3;n>=1;n--){                                        // ou no INICIO
+          if(palavras.length<=n) continue;
+          const cand=palavras.slice(0,n).join(' ');
+          if(MARCAS.has(deburr(cand))){ brand=cand; palavras=palavras.slice(n); break; }
+        }
+      }
+      return { name: palavras.join(' ').trim(), brand, quantity: qty };
+    }
 
     const $ = (id) => document.getElementById(id);
     let chains = []; let user = null; let existing = null;
 
     // Tenta as 3 bases abertas: comida -> beleza -> produtos gerais.
-    const OFF_HOSTS = ['world.openfoodfacts.org','world.openbeautyfacts.org','world.openproductsfacts.org'];
+    const OFF_HOSTS = ['world.openfoodfacts.org','world.openbeautyfacts.org','world.openpetfoodfacts.org','world.openproductsfacts.org'];
     async function offHost(h, ean){
       try{
         const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),4000);
@@ -309,10 +391,23 @@
         const li=document.createElement('li'); li.innerHTML='✓ '+verb+': '+name+extra+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
         // limpar
         $('ean').value=''; $('form').style.display='none'; $('status').className='';
-        for(const i of [1,2,3]){ $('chain'+i).value=''; $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
+        // A CADEIA fica escolhida: a seguir vem quase sempre outro produto da mesma loja.
+        for(const i of [1,2,3]){ $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
+        $('titulo').value=''; $('name').value=''; $('brand').value=''; $('qty').value=''; $('cat').value='';
         existing=null; $('ean').focus();
       }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
       $('add').disabled=false;
+    }
+
+    // Colar o titulo copiado da loja -> preenche os campos automaticamente.
+    function aplicarTitulo(){
+      const r = separarTitulo($('titulo').value);
+      if(!r || !r.name) return;
+      $('name').value = fixName(r.name);
+      if(r.brand) $('brand').value = r.brand;
+      if(r.quantity) $('qty').value = r.quantity;
+      if(!$('cat').value){ const c = guessCategory($('name').value); if(c) $('cat').value = c; }
+      $('form').style.display='block';
     }
 
     async function enterApp(){
@@ -322,6 +417,16 @@
       $('login').style.display='none'; $('app').style.display='block';
       $('who').textContent='Sessão: '+user.email;
       $('cat').innerHTML='<option value="">— categoria —</option>'+CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
+      carregarMarcas();
+      $('titulo').addEventListener('input', aplicarTitulo);
+      $('titulo').addEventListener('paste', ()=>setTimeout(aplicarTitulo,0));
+      // Aviso (nao bloqueia) quando o codigo colado nao bate certo
+      $('ean').addEventListener('input', ()=>{
+        const d=$('ean').value.replace(/[^0-9]/g,'');
+        const av=$('eanAviso');
+        if(!av) return;
+        av.style.display = ([8,12,13,14].includes(d.length) && !gtinChecksumOk(d)) ? 'block' : 'none';
+      });
       const { data:ch } = await sb.from('chains').select('id,name').order('name');
       chains=ch||[];
       const opts='<option value="">— sem cadeia —</option>'+chains.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
