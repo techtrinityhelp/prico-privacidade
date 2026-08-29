@@ -61,8 +61,10 @@
     <div id="status"></div>
 
     <div id="form">
-      <label>Colar titulo da loja (Auchan, Continente...) — separa sozinho
-        <input id="titulo" type="text" placeholder="ex.: Leite UHT Meio Gordo Mimosa 1 L" />
+      <label style="border:1px dashed #cbd5e1;border-radius:10px;padding:10px;display:block;background:#f8fafc">
+        ⚡ Atalho — COLAR aqui o título copiado da loja (separa em nome/marca/quantidade e limpa-se)
+        <input id="titulo" type="text" placeholder="cola aqui e larga · ex.: Leite UHT Meio Gordo Mimosa 1 L" />
+        <span style="display:block;margin-top:4px;color:#64748b;font-size:.85rem">Para escrever à mão, usa o campo <b>Nome</b> aqui em baixo.</span>
       </label>
       <label>Nome<input id="name" type="text" /></label>
       <div class="row2">
@@ -420,6 +422,8 @@
       if(r.quantity) $('qty').value = r.quantity;
       if(!$('cat').value){ const c = guessCategory($('name').value); if(c) $('cat').value = c; }
       $('form').style.display='block';
+      $('titulo').value='';            // atalho de uma vez: o que conta e o campo Nome
+      $('name').focus();
     }
 
     async function enterApp(){
@@ -430,8 +434,8 @@
       $('who').textContent='Sessão: '+user.email;
       $('cat').innerHTML='<option value="">— categoria —</option>'+CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
       carregarMarcas();
-      $('titulo').addEventListener('input', aplicarTitulo);
       $('titulo').addEventListener('paste', ()=>setTimeout(aplicarTitulo,0));
+      $('titulo').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); aplicarTitulo(); } });
       // Aviso (nao bloqueia) quando o codigo colado nao bate certo
       $('ean').addEventListener('input', ()=>{
         const d=$('ean').value.replace(/[^0-9]/g,'');
