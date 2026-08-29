@@ -134,6 +134,18 @@
     function parsePriceToCents(t){ if(t==null||t==='') return null; const limpo=String(t).replace(/[^0-9.,]/g,'').replace(',','.').trim(); const v=Number(limpo); return (isFinite(v)&&v>0)?Math.round(v*100):null; }
 
 
+
+    /* O OFF guarda muitas vezes so a VARIANTE como nome ("Mini" nas Chips Ahoy,
+       "Original" nas Pringles) — o produto real esta na marca. Um nome feito so
+       destas palavras nao identifica nada, por isso nao se aceita a sugestao e
+       escreve-se o nome a mao. */
+    const SO_VARIANTE = new Set(['mini','light','original','natural','classico','classic','zero','extra','maxi','bio','integral','grande','pequeno','familiar','tradicional','forte','suave','doce','salgado','magro','meio','gordo','sabor','plus','pro','max','fresh','soft','duo','multi','super','novo','nova','especial','premium','gold','style','edition','pack','the']);
+    function nomeSoVariante(n){
+      const ws = deburr(n).split(/[^a-z0-9]+/).filter(w=>w.length>=2 && !/^[0-9]+$/.test(w));
+      if(ws.length===0 || ws.length>3) return false;
+      return ws.every(w=>SO_VARIANTE.has(w));
+    }
+
     // --- Digito de controlo do codigo de barras (apanha numeros mal copiados) ---
     function gtinChecksumOk(code){
       const d=String(code||'').replace(/\D/g,'');
@@ -222,7 +234,7 @@
         const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,brands,quantity',{signal:ctrl.signal});
         clearTimeout(t);
         const j=await r.json();
-        if(j.status===1 && j.product){ const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(name) return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
+        if(j.status===1 && j.product){ const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(name && !nomeSoVariante(name)) return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
       }catch{ /* timeout/CORS/erro */ }
       return null;
     }
