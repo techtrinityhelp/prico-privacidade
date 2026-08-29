@@ -104,7 +104,7 @@
     const SUPABASE_KEY = 'sb_publishable_hYxgXG6cnoWpz8dHqiODtw_FwTlOMqN';
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const CATEGORIES = ['Mercearia','Fruta e legumes','Talho (carne)','Peixaria (peixe)','Charcutaria','Queijos','Laticínios e ovos','Bebidas vegetais','Iogurtes e sobremesas','Padaria e pastelaria','Congelados','Refeições prontas','Bolachas e cereais','Snacks e aperitivos','Doçaria e chocolates','Águas','Refrigerantes e sumos','Café, chá e infusões','Bebidas alcoólicas e garrafeira','Higiene e beleza','Limpeza do lar','Bebé','Animais','Casa e bazar','Outra'];
+    const CATEGORIES = ['Mercearia','Fruta e legumes','Talho (carne)','Peixaria (peixe)','Charcutaria','Queijos','Laticínios e ovos','Bebidas vegetais','Iogurtes e sobremesas frescas','Padaria e pastelaria','Congelados','Refeições prontas','Bolachas e cereais','Snacks e aperitivos','Doçaria e chocolates','Águas','Refrigerantes e sumos','Café, chá e infusões','Bebidas alcoólicas e garrafeira','Higiene e beleza','Limpeza do lar','Bebé','Animais','Casa e bazar','Outra'];
 
     const deburr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     const searchNorm = (n,b) => deburr((n||'')+' '+(b||'')).replace(/\s+/g,' ').trim();
@@ -148,6 +148,142 @@
       return ws.every(w=>SO_VARIANTE.has(w));
     }
 
+
+    /* --- Tradutor ESPANHOL -> PORTUGUES (copia de src/lib/es-pt.ts) ---
+       O OFF tem muitas vezes o nome espanhol bem mais completo que o portugues
+       ("Mini" vs "Galletas con gotas de chocolate"). Traduz-se em vez de deitar
+       fora o nome bom. Dicionario FECHADO de supermercado: o que nao conhece
+       fica igual. Se mudares aqui, muda tambem em src/lib/es-pt.ts. */
+    const TRAD_FRASES = [
+  [/\baceite de oliva( virgen extra)?\b/gi, 'azeite virgem extra'],
+  [/\baceite de oliva\b/gi, 'azeite'],
+  [/\baceite de girasol\b/gi, 'óleo de girassol'],
+  [/\bpan de molde\b/gi, 'pão de forma'],
+  [/\bpan rallado\b/gi, 'pão ralado'],
+  [/\bqueso para untar\b/gi, 'queijo para barrar'],
+  [/\bqueso fundido\b/gi, 'queijo fundido'],
+  [/\bqueso fresco\b/gi, 'queijo fresco'],
+  [/\bgotas de chocolate\b/gi, 'gotas de chocolate'],
+  [/\bchocolate con leche\b/gi, 'chocolate de leite'],
+  [/\bleche entera\b/gi, 'leite gordo'],
+  [/\bleche semidesnatada\b/gi, 'leite meio-gordo'],
+  [/\bleche desnatada\b/gi, 'leite magro'],
+  [/\bsin azucares? anadidos?\b/gi, 'sem açúcares adicionados'],
+  [/\bsin gluten\b/gi, 'sem glúten'],
+  [/\bsin lactosa\b/gi, 'sem lactose'],
+  [/\bsin sal\b/gi, 'sem sal'],
+  [/\bbajo en grasa\b/gi, 'baixo teor de gordura'],
+  [/\bfinas lonchas\b/gi, 'fatias finas'],
+  [/\ben lonchas\b/gi, 'às fatias'],
+  [/\bal horno\b/gi, 'no forno'],
+  [/\bal natural\b/gi, 'ao natural'],
+  [/\bzumo de naranja\b/gi, 'sumo de laranja'],
+  [/\bagua mineral\b/gi, 'água mineral'],
+  [/\bjamon serrano\b/gi, 'presunto serrano'],
+  [/\bjamon cocido\b/gi, 'fiambre'],
+  [/\bjamon york\b/gi, 'fiambre'],
+  [/\bpechuga de pavo\b/gi, 'peito de peru'],
+  [/\bpechuga de pollo\b/gi, 'peito de frango'],
+  [/\btortitas de arroz\b/gi, 'tortitas de arroz'],
+  [/\bpuré de patata[s]?\b/gi, 'puré de batata'],
+  [/\bcrema de cacahuete\b/gi, 'manteiga de amendoim'],
+  [/\bfrutos secos\b/gi, 'frutos secos'],
+  [/\bfrutos del bosque\b/gi, 'frutos silvestres'],
+  [/\bfrutas del bosque\b/gi, 'frutos silvestres'],
+];
+    const TRAD_PALAVRAS = {
+  // ligações
+  // NOTA: o espanhol "o" (=ou) fica de fora de proposito — em portugues "o"
+  // e artigo, e traduzi-lo estragava nomes ("Molho o Quê" -> "Molho ou Quê").
+  con: 'com', sin: 'sem', y: 'e', para: 'para', del: 'do', al: 'ao',
+  // produtos
+  galleta: 'bolacha', galletas: 'bolachas', leche: 'leite', queso: 'queijo',
+  quesos: 'queijos', pan: 'pão', panes: 'pães', aceite: 'óleo', mantequilla: 'manteiga',
+  nata: 'natas', yogur: 'iogurte', yogures: 'iogurtes', helado: 'gelado',
+  helados: 'gelados', huevo: 'ovo', huevos: 'ovos', harina: 'farinha',
+  azucar: 'açúcar', azucares: 'açúcares', miel: 'mel', mermelada: 'compota',
+  confitura: 'compota', aceituna: 'azeitona', aceitunas: 'azeitonas',
+  jamon: 'presunto', salchicha: 'salsicha', salchichas: 'salsichas',
+  chorizo: 'chouriço', pollo: 'frango', pavo: 'peru', cerdo: 'porco',
+  ternera: 'vitela', cordero: 'borrego', atun: 'atum', merluza: 'pescada',
+  bacalao: 'bacalhau', sardina: 'sardinha', sardinas: 'sardinhas',
+  salmon: 'salmão', gamba: 'camarão', gambas: 'camarões', marisco: 'marisco',
+  verdura: 'legume', verduras: 'legumes', ensalada: 'salada', sopa: 'sopa',
+  caldo: 'caldo', patata: 'batata', patatas: 'batatas', cebolla: 'cebola',
+  ajo: 'alho', zanahoria: 'cenoura', judias: 'feijão', garbanzos: 'grão-de-bico',
+  lentejas: 'lentilhas', guisantes: 'ervilhas', champinones: 'cogumelos',
+  champinon: 'cogumelo', calabaza: 'abóbora', manzana: 'maçã', naranja: 'laranja',
+  fresa: 'morango', fresas: 'morangos', platano: 'banana', melocoton: 'pêssego',
+  pina: 'ananás', uva: 'uva', uvas: 'uvas', pera: 'pêra', ciruela: 'ameixa',
+  ciruelas: 'ameixas', datil: 'tâmara', datiles: 'tâmaras', pasas: 'passas',
+  almendra: 'amêndoa', almendras: 'amêndoas', nuez: 'noz', nueces: 'nozes',
+  cacahuete: 'amendoim', cacahuetes: 'amendoins', avellana: 'avelã',
+  avellanas: 'avelãs', castanas: 'castanhas', pipas: 'sementes',
+  arroz: 'arroz', pasta: 'massa', fideos: 'massa', macarrones: 'macarrão',
+  espaguetis: 'esparguete', cereales: 'cereais', avena: 'aveia', trigo: 'trigo',
+  maiz: 'milho', centeno: 'centeio', cebada: 'cevada', espelta: 'espelta',
+  agua: 'água', zumo: 'sumo', refresco: 'refrigerante', cerveza: 'cerveja',
+  vino: 'vinho', bebida: 'bebida', bebidas: 'bebidas', cafe: 'café',
+  te: 'chá', infusion: 'infusão', vinagre: 'vinagre', mostaza: 'mostarda',
+  especias: 'especiarias', tarta: 'tarte', bizcocho: 'pão de ló',
+  magdalena: 'queque', magdalenas: 'queques', tostada: 'tosta',
+  tostadas: 'tostas', crema: 'creme', mousse: 'mousse', flan: 'pudim',
+  natillas: 'leite-creme', chuches: 'gomas', caramelo: 'caramelo',
+  chicle: 'pastilha elástica', chicles: 'pastilhas elásticas',
+  // adjetivos e estados
+  entero: 'inteiro', entera: 'inteira', desnatado: 'magro', desnatada: 'magra',
+  semidesnatado: 'meio-gordo', semidesnatada: 'meio-gorda',
+  fresco: 'fresco', fresca: 'fresca', congelado: 'congelado',
+  congelada: 'congelada', cocido: 'cozido', cocida: 'cozida',
+  cocidas: 'cozidas', cocidos: 'cozidos', asado: 'assado', asada: 'assada',
+  frito: 'frito', frita: 'frita', fritas: 'fritas', fritos: 'fritos',
+  tostado: 'torrado', tostados: 'torrados', rallado: 'ralado',
+  rallada: 'ralada', relleno: 'recheado', rellena: 'recheada',
+  rellenas: 'recheadas', rellenos: 'recheados', untar: 'barrar',
+  molde: 'forma', loncha: 'fatia', lonchas: 'fatias', trozo: 'pedaço',
+  trozos: 'pedaços', anadido: 'adicionado', anadidos: 'adicionados',
+  anadida: 'adicionada', anadidas: 'adicionadas', bajo: 'baixo',
+  alto: 'alto', grasa: 'gordura', grasas: 'gorduras', fibra: 'fibra',
+  gluten: 'glúten', lactosa: 'lactose', ecologico: 'biológico',
+  ecologica: 'biológica', virgen: 'virgem', dulce: 'doce', salado: 'salgado',
+  salada: 'salgada', picante: 'picante', blanco: 'branco', blanca: 'branca',
+  negro: 'negro', negra: 'negra', rojo: 'vermelho', roja: 'vermelha',
+  verde: 'verde', pequeno: 'pequeno', grande: 'grande', sabor: 'sabor',
+  gota: 'gota', gotas: 'gotas', pasteurizado: 'pasteurizado',
+  pasteurizada: 'pasteurizada', elaborado: 'feito', elaborada: 'feita',
+  unidades: 'unidades', unidad: 'unidade',
+};
+    function traduzirEsPt(texto){
+      let s=(texto||'').replace(/\s+/g,' ').trim();
+      if(!s) return s;
+      for(const [re_, para] of TRAD_FRASES) s = s.replace(re_, para);
+      s = s.replace(/[A-Za-zÀ-ÿ]+/g, (w)=>{
+        const t = TRAD_PALAVRAS[deburr(w)];
+        if(!t) return w;
+        return (w[0]===w[0].toUpperCase()) ? t.charAt(0).toUpperCase()+t.slice(1) : t;
+      });
+      s = s.replace(/\s+/g,' ').trim();
+      return s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+    }
+
+    /* Escolhe o nome MAIS COMPLETO entre os idiomas do OFF (o portugues e muitas
+       vezes o pior) e traduz se vier em espanhol. */
+    function melhorNomeOff(p){
+      const cand=[p.product_name_pt,p.generic_name_pt,p.product_name_es,p.generic_name_es,p.product_name,p.generic_name,p.product_name_en];
+      const vistos=new Set(); let melhor=null, nota=-1;
+      for(const bruto of cand){
+        const t=(bruto||'').trim(); if(!t) continue;
+        const k=t.toLowerCase(); if(vistos.has(k)) continue; vistos.add(k);
+        if(nomeSoVariante(t)) continue;                 // "Mini", "Original"...
+        const emPt=traduzirEsPt(t);
+        const traduziu = emPt!==t;
+        const palavras = t.split(/[^A-Za-zÀ-ÿ0-9]+/).filter(w=>w.length>=3 && !/^[0-9]+$/.test(w)).length;
+        const n = palavras + (traduziu?0:0.5);
+        if(n>nota){ nota=n; melhor={nome:emPt, traduzido:traduziu}; }
+      }
+      return melhor;
+    }
+
     // --- Digito de controlo do codigo de barras (apanha numeros mal copiados) ---
     function gtinChecksumOk(code){
       const d=String(code||'').replace(/\D/g,'');
@@ -165,7 +301,7 @@
       [['cafe','cha','infusao','infusoes','capsulas'],'Café, chá e infusões'],
       [['vinho','vinhos','cerveja','cervejas','whisky','gin','licor','vodka','sidra'],'Bebidas alcoólicas e garrafeira'],
       [['leite','manteiga','ovos','natas','queijo','queijos'],'Laticínios e ovos'],
-      [['iogurte','iogurtes','pudim','gelatina','kefir'],'Iogurtes e sobremesas'],
+      [['iogurte','iogurtes','pudim','gelatina','kefir'],'Iogurtes e sobremesas frescas'],
       [['fiambre','chourico','presunto','salsichas','mortadela','paio'],'Charcutaria'],
       [['pao','bolo','bolos','croissant','baguete','broa','donut'],'Padaria e pastelaria'],
       [['bolacha','bolachas','cereais','flocos','tostas','muesli','granola','aveia'],'Bolachas e cereais'],
@@ -233,10 +369,10 @@
     async function offHost(h, ean){
       try{
         const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),4000);
-        const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,brands,quantity',{signal:ctrl.signal});
+        const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,product_name_es,product_name_en,generic_name,generic_name_pt,generic_name_es,brands,quantity',{signal:ctrl.signal});
         clearTimeout(t);
         const j=await r.json();
-        if(j.status===1 && j.product){ const p=j.product; const name=(p.product_name_pt||p.product_name||'').trim(); if(name && !nomeSoVariante(name)) return { name, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
+        if(j.status===1 && j.product){ const p=j.product; const m=melhorNomeOff(p); if(m) return { name:m.nome, traduzido:m.traduzido, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
       }catch{ /* timeout/CORS/erro */ }
       return null;
     }
@@ -248,7 +384,7 @@
     function showStatus(cls, html){ $('status').className=cls; $('status').innerHTML=html; }
     function fill(o){ $('name').value=o.name||''; $('brand').value=o.brand||''; $('qty').value=o.quantity||''; $('cat').value=o.category||''; }
 
-    const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
+    const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas frescas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
     function guessCat(name){ const n=deburr(name); for(const [k,c] of CATKW) if(n.includes(k)) return c; return ''; }
 
     const euro = (c) => (c/100).toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
