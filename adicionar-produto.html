@@ -73,6 +73,14 @@
       </div>
       <label>Categoria<select id="cat"></select></label>
 
+      <label style="border:1px dashed #cbd5e1;border-radius:10px;padding:10px;display:block;background:#f8fafc">
+        🖼️ Foto — no site da loja: botão direito na imagem → <b>Copiar imagem</b>, e depois COLAR aqui (Ctrl+V)
+        <input id="fotoCola" type="text" placeholder="clica aqui e cola (Ctrl+V) — imagem ou link" />
+        <span id="fotoEstado" style="display:block;margin-top:6px;color:#64748b;font-size:.85rem">Sem foto.</span>
+        <img id="fotoPrev" alt="" style="display:none;max-width:140px;max-height:140px;margin-top:8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0" />
+        <button type="button" id="fotoTirar" class="sec" style="display:none;margin-top:6px;padding:6px 12px;font-size:.85rem">Remover foto</button>
+      </label>
+
       <!-- Blocos de cadeia (preço + promoção). 2 e 3 são opcionais. -->
       <div class="block">
         <div class="tag">Cadeia 1</div>
@@ -148,6 +156,68 @@
       return ws.every(w=>SO_VARIANTE.has(w));
     }
 
+
+
+    /* --- FOTO: colar a imagem copiada do site da loja ---------------------
+       Dois caminhos: (a) "Copiar imagem" poe os BYTES na area de transferencia
+       -> enviam-se para o Storage da Prico (ficam nossos, nao dependem do site
+       da loja); (b) "Copiar endereco da imagem" poe um LINK -> tenta-se buscar e
+       guardar na mesma; se o site bloquear (CORS), fica o link. */
+    let fotoUrl = null;
+
+    function mostrarFoto(estado){
+      $('fotoEstado').textContent = estado || (fotoUrl ? 'Foto pronta a guardar.' : 'Sem foto.');
+      $('fotoPrev').style.display = fotoUrl ? 'block' : 'none';
+      $('fotoTirar').style.display = fotoUrl ? 'inline-block' : 'none';
+      if(fotoUrl) $('fotoPrev').src = fotoUrl;
+    }
+
+    async function enviarParaStorage(blob){
+      const tipo = blob.type || 'image/png';
+      const ext = (tipo.split('/')[1] || 'png').replace('jpeg','jpg').replace('+xml','');
+      const nome = 'web/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+      const { error } = await sb.storage.from('product-images').upload(nome, blob, { contentType: tipo, upsert: false });
+      if(error) throw error;
+      return sb.storage.from('product-images').getPublicUrl(nome).data.publicUrl;
+    }
+
+    async function aoColarFoto(e){
+      const itens = (e.clipboardData && e.clipboardData.items) || [];
+      for(const it of itens){
+        if(it.type && it.type.indexOf('image/') === 0){
+          e.preventDefault();
+          mostrarFoto('A enviar a imagem…');
+          try{
+            fotoUrl = await enviarParaStorage(it.getAsFile());
+            mostrarFoto('✓ Imagem guardada na Prico.');
+          }catch(err){
+            fotoUrl = null;
+            mostrarFoto('Não consegui guardar a imagem: ' + (err.message || err));
+          }
+          $('fotoCola').value='';
+          return;
+        }
+      }
+      // Sem bytes: talvez tenha sido colado o ENDERECO da imagem.
+      const texto = ((e.clipboardData && e.clipboardData.getData('text')) || '').trim();
+      if(/^https?:\/\//i.test(texto)){
+        e.preventDefault();
+        $('fotoCola').value='';
+        mostrarFoto('A obter a imagem do link…');
+        try{
+          const r = await fetch(texto, { mode:'cors' });
+          if(!r.ok) throw new Error('HTTP ' + r.status);
+          const blob = await r.blob();
+          if(blob.type.indexOf('image/') !== 0) throw new Error('o link não é uma imagem');
+          fotoUrl = await enviarParaStorage(blob);
+          mostrarFoto('✓ Imagem guardada na Prico.');
+        }catch(err){
+          // O site da loja bloqueou a copia -> guarda-se o link como esta.
+          fotoUrl = texto;
+          mostrarFoto('⚠️ Guardado como LINK do site da loja (pode deixar de funcionar).');
+        }
+      }
+    }
 
     /* --- Tradutor ESPANHOL -> PORTUGUES (copia de src/lib/es-pt.ts) ---
        O OFF tem muitas vezes o nome espanhol bem mais completo que o portugues
@@ -501,7 +571,9 @@
           productId=existing.id;
           const { error: ue } = await sb.from('products').update({
             name, brand, quantity, category, ean,
-            pack_units: derivePackUnits(quantity), search_norm: searchNorm(name,brand)
+            pack_units: derivePackUnits(quantity), search_norm: searchNorm(name,brand),
+            // so mexe na foto se tiver sido colada uma nova (nao apaga a existente)
+            ...(fotoUrl ? { image_url: fotoUrl } : {})
           }).eq('id', productId);
           if(ue) throw ue;
         }
@@ -513,6 +585,7 @@
             const { data: created, error } = await sb.from('products').insert({
               ean, name, brand, quantity, category,
               pack_units: derivePackUnits(quantity), search_norm: searchNorm(name,brand),
+              image_url: fotoUrl,
               status:'confirmed', created_by: user.id
             }).select('id').single();
             if(error) throw error; productId=created.id;
@@ -543,6 +616,7 @@
         $('ean').value=''; $('form').style.display='none'; $('status').className='';
         // A CADEIA fica escolhida: a seguir vem quase sempre outro produto da mesma loja.
         for(const i of [1,2,3]){ $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
+        fotoUrl=null; mostrarFoto();
         $('titulo').value=''; $('name').value=''; $('brand').value=''; $('qty').value=''; $('cat').value='';
         existing=null; $('ean').focus();
       }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
@@ -571,6 +645,8 @@
       $('cat').innerHTML='<option value="">— categoria —</option>'+CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
       carregarMarcas();
       $('titulo').addEventListener('paste', ()=>setTimeout(aplicarTitulo,0));
+      $('fotoCola').addEventListener('paste', aoColarFoto);
+      $('fotoTirar').addEventListener('click', ()=>{ fotoUrl=null; mostrarFoto(); });
       $('titulo').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); aplicarTitulo(); } });
       // Aviso (nao bloqueia) quando o codigo colado nao bate certo
       $('ean').addEventListener('input', ()=>{
