@@ -172,7 +172,7 @@
         const igual = deburr(off.name).replace(/[^a-z0-9]/g,'') === deburr(nomeAtual||'').replace(/[^a-z0-9]/g,'');
         if(igual) return;
         cx.innerHTML = '✨ O Open Food Facts tem: <b>'+off.name+'</b>'
-          + (off.traduzido ? ' <span style="color:#64748b">(traduzido do espanhol)</span>' : '')
+          + (off.traduzido ? ' <span style="color:#64748b">(traduzido automaticamente)</span>' : '')
           + (off.ingles ? ' <span style="color:#b45309">(em inglês — convém traduzir)</span>' : '')
           + ' <button type="button" id="usarSug" class="sec" style="margin-left:8px;padding:4px 10px;font-size:.85rem">Usar este nome</button>';
         cx.style.display='block';
@@ -287,7 +287,34 @@
   [/\bfrutos secos\b/gi, 'frutos secos'],
   [/\bfrutos del bosque\b/gi, 'frutos silvestres'],
   [/\bfrutas del bosque\b/gi, 'frutos silvestres'],
-];
+  // --- FRANCÊS (o OFF nasceu em França e o Auchan é francês) ---
+  [/\bhuile d'olive( vierge extra)?\b/gi, 'azeite virgem extra'],
+  [/\bhuile de tournesol\b/gi, 'óleo de girassol'],
+  [/\blait concentré( sucré)?(?![a-zà-ÿ])/gi, 'leite condensado'],
+  [/\blait demi-écrémé(?![a-zà-ÿ])/gi, 'leite meio-gordo'],
+  [/\blait écrémé(?![a-zà-ÿ])/gi, 'leite magro'],
+  [/\blait entier\b/gi, 'leite gordo'],
+  [/\byaourt nature\b/gi, 'iogurte natural'],
+  [/\bfromage frais\b/gi, 'queijo fresco'],
+  [/\bfromage râpé(?![a-zà-ÿ])/gi, 'queijo ralado'],
+  [/\bfromage à tartiner\b/gi, 'queijo para barrar'],
+  [/\bpommes? de terre\b/gi, 'batata'],
+  [/\bpetits pois\b/gi, 'ervilhas'],
+  [/\bharicots verts\b/gi, 'feijão verde'],
+  [/\bjus d'orange\b/gi, 'sumo de laranja'],
+  [/\bsans sucres? ajoutés?\b/gi, 'sem açúcares adicionados'],
+  [/\bsans gluten\b/gi, 'sem glúten'],
+  [/\bsans lactose\b/gi, 'sem lactose'],
+  [/\bsans sel\b/gi, 'sem sal'],
+  [/\bblanc de poulet\b/gi, 'peito de frango'],
+  [/\bblanc de dinde\b/gi, 'peito de peru'],
+  [/\bbeurre de cacahuète\b/gi, 'manteiga de amendoim'],
+  [/\bpâte à tartiner\b/gi, 'creme de barrar'],
+  [/\bfruits secs\b/gi, 'frutos secos'],
+  [/\bfruits rouges\b/gi, 'frutos vermelhos'],
+  [/\bdemi-écrémé(?![a-zà-ÿ])/gi, 'meio-gordo'],
+  [/\bécrémé(?![a-zà-ÿ])/gi, 'magro'],
+]
     const TRAD_PALAVRAS = {
   // ligações
   // NOTA: o espanhol "o" (=ou) fica de fora de proposito — em portugues "o"
@@ -349,7 +376,35 @@
   gota: 'gota', gotas: 'gotas', pasteurizado: 'pasteurizado',
   pasteurizada: 'pasteurizada', elaborado: 'feito', elaborada: 'feita',
   unidades: 'unidades', unidad: 'unidade',
-};
+  // --- FRANCÊS ---
+  // NOTA: "creme" fica de fora — é palavra PORTUGUESA; o francês "crème" está
+  // coberto pelas frases. "bio" e "chocolate" também não se tocam.
+  sans: 'sem', avec: 'com', en: 'em', lait: 'leite', fromage: 'queijo', beurre: 'manteiga',
+  oeuf: 'ovo', oeufs: 'ovos', farine: 'farinha', sucre: 'açúcar',
+  sucres: 'açúcares', sel: 'sal', eau: 'água', jus: 'sumo', pain: 'pão',
+  biscuit: 'bolacha', biscuits: 'bolachas', yaourt: 'iogurte',
+  yaourts: 'iogurtes', chocolat: 'chocolate', confiture: 'compota',
+  poulet: 'frango', dinde: 'peru', porc: 'porco', boeuf: 'vaca',
+  saucisse: 'salsicha', saucisses: 'salsichas',
+  poisson: 'peixe', thon: 'atum', saumon: 'salmão', crevettes: 'camarões',
+  viande: 'carne', fruits: 'frutos',
+  tomates: 'tomate', oignon: 'cebola', oignons: 'cebolas', carotte: 'cenoura',
+  carottes: 'cenouras', champignons: 'cogumelos', riz: 'arroz', pates: 'massa',
+  huile: 'óleo', vinaigre: 'vinagre', moutarde: 'mostarda',
+  gateau: 'bolo', glace: 'gelado', noix: 'nozes', amande: 'amêndoa',
+  amandes: 'amêndoas', noisette: 'avelã', noisettes: 'avelãs',
+  biere: 'cerveja', vin: 'vinho',
+  concentre: 'concentrado', classique: 'clássico', entier: 'inteiro',
+  entiere: 'inteira', ecreme: 'magro', allege: 'magro', tranches: 'fatias',
+  tranche: 'fatia', morceaux: 'pedaços', surgele: 'congelado',
+  surgeles: 'congelados', frais: 'fresco', fraiche: 'fresca', cuit: 'cozido',
+  cuite: 'cozida', grille: 'grelhado', fume: 'fumado',
+  sucree: 'doce', moulu: 'moído', rape: 'ralado', epices: 'especiarias',
+  gout: 'sabor', saveur: 'sabor', pepites: 'pepitas',
+  noir: 'negro', noire: 'negra', blanc: 'branco', blanche: 'branca',
+  rouge: 'vermelho', rouges: 'vermelhos', vert: 'verde', verte: 'verde',
+  nature: 'natural', demi: 'meio', poudre: 'pó', liquide: 'líquido',
+}
     function traduzirEsPt(texto){
       let s=(texto||'').replace(/\s+/g,' ').trim();
       if(!s) return s;
