@@ -312,9 +312,15 @@
   [/\bpâte à tartiner\b/gi, 'creme de barrar'],
   [/\bfruits secs\b/gi, 'frutos secos'],
   [/\bfruits rouges\b/gi, 'frutos vermelhos'],
+  [/\bolives noires dénoyautées(?![a-zà-ÿ])/gi, 'azeitonas pretas sem caroço'],
+  [/\bolives vertes dénoyautées(?![a-zà-ÿ])/gi, 'azeitonas verdes sem caroço'],
+  [/\bdénoyautées?(?![a-zà-ÿ])/gi, 'sem caroço'],
+  [/\baceitunas negras deshuesadas\b/gi, 'azeitonas pretas sem caroço'],
+  [/\bdeshuesadas?\b/gi, 'sem caroço'],
+  [/\bde la variedad\b/gi, 'da variedade'],
   [/\bdemi-écrémé(?![a-zà-ÿ])/gi, 'meio-gordo'],
   [/\bécrémé(?![a-zà-ÿ])/gi, 'magro'],
-]
+];
     const TRAD_PALAVRAS = {
   // ligações
   // NOTA: o espanhol "o" (=ou) fica de fora de proposito — em portugues "o"
@@ -401,10 +407,14 @@
   cuite: 'cozida', grille: 'grelhado', fume: 'fumado',
   sucree: 'doce', moulu: 'moído', rape: 'ralado', epices: 'especiarias',
   gout: 'sabor', saveur: 'sabor', pepites: 'pepitas',
+  olives: 'azeitonas', olive: 'azeitona', noires: 'pretas', boite: 'lata',
+  boites: 'latas', bocal: 'frasco', sachet: 'saqueta', barquette: 'embalagem',
+  negras: 'pretas', variedad: 'variedade', bote: 'lata',
+  lata: 'lata', frasco: 'frasco', envase: 'embalagem',
   noir: 'negro', noire: 'negra', blanc: 'branco', blanche: 'branca',
   rouge: 'vermelho', rouges: 'vermelhos', vert: 'verde', verte: 'verde',
   nature: 'natural', demi: 'meio', poudre: 'pó', liquide: 'líquido',
-}
+};
     function traduzirEsPt(texto){
       let s=(texto||'').replace(/\s+/g,' ').trim();
       if(!s) return s;
@@ -434,24 +444,60 @@
       return ws.some(w=>MARCADORES_EN.has(w));
     }
 
-    /* Escolhe o nome MAIS COMPLETO entre os idiomas do OFF (o portugues e muitas
-       vezes o pior) e traduz se vier em espanhol. */
+    const MK_PT = new Set([
+  'leite', 'queijo', 'pao', 'paes', 'bolacha', 'bolachas', 'iogurte', 'iogurtes',
+  'agua', 'acucar', 'acucares', 'manteiga', 'frango', 'peixe', 'carne', 'sumo',
+  'azeite', 'com', 'sem', 'nao', 'morango', 'laranja', 'ananas', 'pessego',
+  'ameixa', 'amendoa', 'amendoim', 'avela', 'ovos', 'natas', 'gordo', 'magro',
+  'fatias', 'pedacos', 'cozido', 'assado', 'grelhado', 'fumado', 'ralado',
+  'recheado', 'barrar', 'forma', 'milho', 'aveia', 'feijao', 'ervilhas',
+  'cogumelos', 'cebola', 'alho', 'cenoura', 'batata', 'batatas', 'legumes',
+  'frutos', 'sementes', 'tosta', 'tostas',
+  // NOTA: fora de proposito palavras iguais noutras linguas — 'chocolate',
+  // 'natural', 'integral', 'cereais'/'cereals', 'massa' — que faziam passar
+  // texto ingles por portugues.
+]);
+    const MK_FR = new Set([
+  'lait', 'fromage', 'beurre', 'sans', 'avec', 'oeuf', 'oeufs', 'sucre', 'sel',
+  'eau', 'jus', 'pain', 'biscuit', 'biscuits', 'yaourt', 'poulet', 'dinde',
+  'poisson', 'viande', 'concentre', 'classique', 'entier', 'ecreme',
+  'tranches', 'surgele', 'moulu', 'rape', 'noix', 'pepites', 'gout',
+]);
+    function pareceFrances(t){ const w=deburr(t||'').split(/[^a-z0-9]+/).filter(Boolean); return w.some(x=>MK_FR.has(x)); }
+    function parecePortugues(t){
+      if(pareceIngles(t) || pareceFrances(t)) return false;
+      if(/[ãõçÃÕÇ]/.test(t||'')) return true;
+      const w=deburr(t||'').split(/[^a-z0-9]+/).filter(Boolean);
+      return w.some(x=>MK_PT.has(x));
+    }
+    function fracaoTraduzida(a,d){
+      const A=(a||'').split(/[ ]+/).filter(Boolean), D=(d||'').split(/[ ]+/).filter(Boolean);
+      if(!A.length) return 0; let m=0;
+      for(let i=0;i<Math.min(A.length,D.length);i++) if(A[i]!==D[i]) m++;
+      return m/A.length;
+    }
+
+    /* Escolhe o nome por NIVEIS: (1) o que ja esta em portugues, (2) o que
+       conseguimos traduzir, (3) o resto. Dentro do nivel ganha o mais bem
+       traduzido e depois o mais informativo. */
     function melhorNomeOff(p){
       const cand=[p.product_name_pt,p.generic_name_pt,p.product_name_es,p.generic_name_es,p.product_name,p.generic_name,p.product_name_en];
-      const vistos=new Set(); let melhor=null, nota=-1;
+      const niveis=[[],[],[]]; const vistos=new Set();
       for(const bruto of cand){
         const t=(bruto||'').trim(); if(!t) continue;
         const k=t.toLowerCase(); if(vistos.has(k)) continue; vistos.add(k);
-        if(nomeSoVariante(t)) continue;                 // "Mini", "Original"...
-        const emPt=traduzirEsPt(t);
-        const traduziu = emPt!==t;
-        const ingles = !traduziu && pareceIngles(t);
-        const palavras = t.split(/[^A-Za-zÀ-ÿ0-9]+/).filter(w=>w.length>=3 && !/^[0-9]+$/.test(w)).length;
-        // portugues > espanhol traduzido > ingles (que fica por traduzir)
-        const n = palavras + (ingles ? -1 : (traduziu ? 0 : 0.5));
-        if(n>nota){ nota=n; melhor={nome:emPt, traduzido:traduziu, ingles}; }
+        if(nomeSoVariante(t)) continue;
+        const emPt=traduzirEsPt(t); const mudou=emPt!==t;
+        const n=(parecePortugues(emPt)&&!mudou)?0:(mudou?1:2);
+        const palavras=emPt.split(/[^A-Za-zÀ-ÿ0-9]+/).filter(w=>w.length>=3 && !/^[0-9]+$/.test(w)).length;
+        niveis[n].push({nome:emPt, traduzido:mudou, ingles:(n===2&&pareceIngles(t)), f:fracaoTraduzida(t,emPt), p:palavras});
       }
-      return melhor;
+      for(let n=0;n<3;n++){
+        if(!niveis[n].length) continue;
+        niveis[n].sort((a,b)=>b.f-a.f || b.p-a.p);
+        return niveis[n][0];
+      }
+      return null;
     }
 
     // --- Digito de controlo do codigo de barras (apanha numeros mal copiados) ---
