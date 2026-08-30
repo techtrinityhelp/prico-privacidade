@@ -160,12 +160,20 @@
 
 
 
+    /* A caixa da sugestão TEM de ser limpa em todos os recomeços. Só era limpa
+       dentro do proporNomeMelhor(), que só corre quando o produto JÁ existe —
+       por isso num produto NOVO ficava lá a sugestão do produto anterior. */
+    function limparSugestaoNome(){
+      const cx = $('sugNome');
+      if (cx) { cx.style.display = 'none'; cx.innerHTML = ''; }
+    }
+
     /* Compara o nome guardado com o melhor que o OFF tem (ja traduzido) e, se for
        diferente, oferece-o a um clique. Serve sobretudo para arrumar os nomes
        antigos que ficaram em espanhol ou so com a variante ("Mini", "Light"). */
     async function proporNomeMelhor(ean, nomeAtual){
       const cx=$('sugNome'); if(!cx) return;
-      cx.style.display='none'; cx.innerHTML='';
+      limparSugestaoNome();
       try{
         const off=await offLookup(ean);
         if(!off || !off.name) return;
@@ -318,6 +326,14 @@
   [/\baceitunas negras deshuesadas\b/gi, 'azeitonas pretas sem caroço'],
   [/\bdeshuesadas?\b/gi, 'sem caroço'],
   [/\bde la variedad\b/gi, 'da variedade'],
+  [/\bpâtes alimentaires(?![a-zà-ÿ])/gi, 'massa'],
+  [/\bpâtes(?![a-zà-ÿ])/gi, 'massa'],
+  [/\bde qualité supérieures?(?![a-zà-ÿ])/gi, 'de qualidade superior'],
+  [/\bqualité supérieures?(?![a-zà-ÿ])/gi, 'qualidade superior'],
+  [/\bqualité(?![a-zà-ÿ])/gi, 'qualidade'],
+  [/\bsupérieures?(?![a-zà-ÿ])/gi, 'superior'],
+  [/\balimentaires(?![a-zà-ÿ])/gi, 'alimentares'],
+  [/\balimentaire(?![a-zà-ÿ])/gi, 'alimentar'],
   [/\bdemi-écrémé(?![a-zà-ÿ])/gi, 'meio-gordo'],
   [/\bécrémé(?![a-zà-ÿ])/gi, 'magro'],
 ];
@@ -689,6 +705,7 @@
     async function lookup(){
       const ean=($('ean').value||'').replace(/\D/g,'');
       existing=null; window._dups=[];
+      limparSugestaoNome();
       if(ean.length<8){ showStatus('err','EAN inválido (8 a 13 dígitos).'); $('form').style.display='none'; return; }
       showStatus('ok','A procurar…');
       try {
@@ -790,7 +807,7 @@
         $('ean').value=''; $('form').style.display='none'; $('status').className='';
         // A CADEIA fica escolhida: a seguir vem quase sempre outro produto da mesma loja.
         for(const i of [1,2,3]){ $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
-        fotoUrl=null; mostrarFoto();
+        fotoUrl=null; mostrarFoto(); limparSugestaoNome();
         $('titulo').value=''; $('name').value=''; $('brand').value=''; $('qty').value=''; $('cat').value='';
         existing=null; $('ean').focus();
       }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
