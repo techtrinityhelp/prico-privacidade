@@ -678,7 +678,7 @@
         const dups=await searchByName(name);
         window._dups=dups;
         if(dups.length){
-          const links=dups.map((d,i)=>'<a href="#" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+d.name+(d.ean?'':' (sem EAN)')+'</a>').join(' · ');
+          const links=dups.map((d,i)=>'<a href="#" style="display:block;margin:4px 0" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+'<b>'+d.name+'</b>'+(d.brand? ' · '+d.brand : '')+(d.quantity? ' · '+d.quantity : '')+(d.ean? '' : ' <span style=\"color:#b45309\">(sem código)</span>')+'</a>').join(' · ');
           showStatus('no','⚠️ <b>Pode já existir</b>: '+links+'<br><span style="color:#555">É um destes? Clica para atualizar. Senão, continua e adiciona como novo.</span>');
         } else {
           showStatus('no','✍️ Sem parecidos — parece novo. Confirma e adiciona.');
@@ -713,7 +713,7 @@
       const dups = offName ? await searchByName(offName) : [];
       if(dups.length){
         window._dups=dups;
-        const links = dups.map((d,i)=>'<a href="#" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+d.name+'</a>').join(' · ');
+        const links = dups.map((d,i)=>'<a href="#" style="display:block;margin:4px 0" onclick="event.preventDefault();window.__pick(window._dups['+i+'])">'+'<b>'+d.name+'</b>'+(d.brand? ' · '+d.brand : '')+(d.quantity? ' · '+d.quantity : '')+(d.ean? '' : ' <span style=\"color:#b45309\">(sem código)</span>')+'</a>').join('');
         showStatus('no', (off?('🆕 Identificado: <b>'+offName+'</b>.<br>'):'')+
           '⚠️ <b>Pode já existir</b> (sem EAN): '+links+
           '<br><span style="color:#555">Se for um destes, clica para o atualizar (cola-lhe o EAN). Senão, é mesmo novo.</span>');
