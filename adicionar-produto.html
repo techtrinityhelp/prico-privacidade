@@ -810,6 +810,7 @@
       $('add').disabled=true;
       try{
         const wasExisting = !!existing;
+        let juntouAExistente = false;
         let productId;
         if(existing){
           // Já existe -> ATUALIZA os dados (por id, sem duplicar) com o formulário.
@@ -823,9 +824,30 @@
           if(ue) throw ue;
         }
         else {
-          const { data: match } = await sb.from('products').select('id,name').ilike('name',name);
-          const exact=(match||[]).find(p=>p.name.toLowerCase()===name.toLowerCase());
-          if(exact){ productId=exact.id; }
+          /*
+           * UM EAN E UMA IDENTIDADE. Se o codigo nao esta na Prico, o produto e
+           * NOVO e cria-se — ponto final.
+           *
+           * Juntar por nome aqui foi o que fez o Esparguete Auchan 500g
+           * (3596710515820) desaparecer para dentro de um "Esparguete 1 kg" que
+           * ja la estava: perdeu-se o codigo, a marca e a quantidade, e o preco
+           * de 0,69 EUR ficou colado ao produto errado. E a mensagem ainda
+           * dizia "Adicionado", por isso nao havia como dar por isso.
+           *
+           * A rede anti-duplicado nao e esta: e o aviso no ecra, com os
+           * parecidos, onde e a PESSOA que confirma se e o mesmo produto.
+           */
+          let achado = null;
+          if(!ean){
+            // Sem codigo nao ha identidade, e ai vale a pena colar a um
+            // existente — mas so se for MESMO o mesmo: nome e quantidade
+            // iguais, e o outro tambem sem codigo (se tem codigo, e outro).
+            const { data: match } = await sb.from('products').select('id,name,quantity,ean').ilike('name',name);
+            achado = (match||[]).find(x =>
+              x.name.toLowerCase()===name.toLowerCase() && !x.ean &&
+              deburr(x.quantity||'') === deburr(quantity||'')) || null;
+          }
+          if(achado){ productId=achado.id; juntouAExistente=true; }
           else {
             const { data: created, error } = await sb.from('products').insert({
               ean, name, brand, quantity, category,
@@ -854,7 +876,9 @@
           }
         }
         const extra=(n?(' · '+n+' preço'+(n>1?'s':'')):'')+(np?(' · '+np+' promo'):'');
-        const verb = wasExisting ? 'Atualizado' : 'Adicionado';
+        // Dizer a verdade: se o preco foi parar a um produto que ja la estava,
+        // isso tem de aparecer, senao repete-se o erro sem se dar por ele.
+        const verb = wasExisting ? 'Atualizado' : juntouAExistente ? 'Juntado a um já existente' : 'Adicionado';
         $('msg').className='ok2'; $('msg').textContent='✓ '+verb+': '+name+extra;
         const li=document.createElement('li'); li.innerHTML='✓ '+verb+': '+name+extra+(ean?' · <span class="ean">'+ean+'</span>':''); $('hist').insertBefore(li,$('hist').firstChild);
         // limpar
