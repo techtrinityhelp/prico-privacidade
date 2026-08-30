@@ -78,7 +78,17 @@
         🖼️ Foto — no site da loja: botão direito na imagem → <b>Copiar imagem</b>, e depois COLAR aqui (Ctrl+V)
         <input id="fotoCola" type="text" placeholder="clica aqui e cola (Ctrl+V) — imagem ou link" />
         <span id="fotoEstado" style="display:block;margin-top:6px;color:#64748b;font-size:.85rem">Sem foto.</span>
-        <img id="fotoPrev" alt="" style="display:none;max-width:140px;max-height:140px;margin-top:8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0" />
+        <div id="fotoTiras" style="display:none;gap:14px;margin-top:8px;align-items:flex-start">
+          <figure id="fotoBoxAtual" style="display:none;margin:0;text-align:center">
+            <img id="fotoAtualPrev" alt="" style="max-width:120px;max-height:120px;border-radius:8px;background:#fff;border:1px solid #e2e8f0" />
+            <figcaption style="font-size:.78rem;color:#64748b;margin-top:4px">na Prico</figcaption>
+          </figure>
+          <figure id="fotoBoxNova" style="display:none;margin:0;text-align:center">
+            <img id="fotoPrev" alt="" style="max-width:120px;max-height:120px;border-radius:8px;background:#fff;border:2px solid #16a34a" />
+            <figcaption id="fotoNovaLegenda" style="font-size:.78rem;color:#16a34a;margin-top:4px">nova</figcaption>
+          </figure>
+        </div>
+        <button type="button" id="fotoUsarOff" class="sec" style="display:none;margin-top:6px;padding:6px 12px;font-size:.85rem">Usar a foto do Open Food Facts</button>
         <button type="button" id="fotoTirar" class="sec" style="display:none;margin-top:6px;padding:6px 12px;font-size:.85rem">Remover foto</button>
       </label>
 
@@ -198,13 +208,38 @@
        -> enviam-se para o Storage da Prico (ficam nossos, nao dependem do site
        da loja); (b) "Copiar endereco da imagem" poe um LINK -> tenta-se buscar e
        guardar na mesma; se o site bloquear (CORS), fica o link. */
-    let fotoUrl = null;
+    // TRES fotos diferentes, que nao se podem confundir:
+    //   fotoAtual -> a que o produto JA tem na Prico (so para ver e comparar)
+    //   fotoUrl   -> a NOVA, colada agora; e a unica que se grava
+    //   fotoOff   -> a que o Open Food Facts oferece, a um clique
+    let fotoUrl = null, fotoAtual = null, fotoOff = null;
 
     function mostrarFoto(estado){
-      $('fotoEstado').textContent = estado || (fotoUrl ? 'Foto pronta a guardar.' : 'Sem foto.');
-      $('fotoPrev').style.display = fotoUrl ? 'block' : 'none';
-      $('fotoTirar').style.display = fotoUrl ? 'inline-block' : 'none';
-      if(fotoUrl) $('fotoPrev').src = fotoUrl;
+      const temNova = !!fotoUrl, temAtual = !!fotoAtual;
+      let txt = estado;
+      if(!txt){
+        if(temNova && temAtual) txt = '\u26a0\ufe0f A nova foto vai SUBSTITUIR a que esta na Prico.';
+        else if(temNova)        txt = '\u2713 Foto pronta a guardar.';
+        else if(temAtual)       txt = '\u2713 Este produto JA TEM foto. So cola outra se esta estiver ma.';
+        else if(fotoOff)        txt = '\ud83d\udcf7 Sem foto na Prico \u2014 mas o Open Food Facts tem uma.';
+        else                    txt = 'Sem foto. Cola aqui a da loja (Ctrl+V).';
+      }
+      $('fotoEstado').textContent = txt;
+      // Oferta do OFF: mostra-se a foto ANTES de a aceitar (a tracejado, para
+      // nao parecer ja escolhida) — senao estarias a aceitar as cegas.
+      const soOferta = !temNova && !temAtual && !!fotoOff;
+      if(temAtual) $('fotoAtualPrev').src = fotoAtual;
+      if(temNova)  $('fotoPrev').src = fotoUrl;
+      else if(soOferta) $('fotoPrev').src = fotoOff;
+      $('fotoPrev').style.border = temNova ? '2px solid #16a34a' : '2px dashed #cbd5e1';
+      $('fotoBoxAtual').style.display = temAtual ? 'inline-block' : 'none';
+      $('fotoBoxNova').style.display  = (temNova || soOferta) ? 'inline-block' : 'none';
+      $('fotoTiras').style.display    = (temAtual || temNova || soOferta) ? 'flex' : 'none';
+      $('fotoNovaLegenda').style.color = soOferta ? '#64748b' : '#16a34a';
+      $('fotoNovaLegenda').textContent = soOferta ? 'do Open Food Facts' : (temAtual ? 'nova (substitui)' : 'nova');
+      $('fotoTirar').style.display = temNova ? 'inline-block' : 'none';
+      $('fotoTirar').textContent = temAtual ? 'Cancelar \u2014 manter a atual' : 'Remover foto';
+      $('fotoUsarOff').style.display = (!temNova && !temAtual && fotoOff) ? 'inline-block' : 'none';
     }
 
     async function enviarParaStorage(blob){
@@ -497,7 +532,7 @@
        conseguimos traduzir, (3) o resto. Dentro do nivel ganha o mais bem
        traduzido e depois o mais informativo. */
     function melhorNomeOff(p){
-      const cand=[p.product_name_pt,p.generic_name_pt,p.product_name_es,p.generic_name_es,p.product_name,p.generic_name,p.product_name_en];
+      const cand=[p.product_name_pt,p.generic_name_pt,p.product_name_es,p.generic_name_es,p.product_name_fr,p.generic_name_fr,p.product_name,p.generic_name,p.product_name_en];
       const niveis=[[],[],[]]; const vistos=new Set();
       for(const bruto of cand){
         const t=(bruto||'').trim(); if(!t) continue;
@@ -625,20 +660,35 @@
     async function offHost(h, ean){
       try{
         const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),4000);
-        const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,product_name_es,product_name_en,generic_name,generic_name_pt,generic_name_es,brands,quantity',{signal:ctrl.signal});
+        const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,product_name_es,product_name_fr,product_name_en,generic_name,generic_name_pt,generic_name_es,generic_name_fr,brands,quantity,image_front_small_url,image_front_url,image_url',{signal:ctrl.signal});
         clearTimeout(t);
         const j=await r.json();
-        if(j.status===1 && j.product){ const p=j.product; const m=melhorNomeOff(p); if(m) return { name:m.nome, traduzido:m.traduzido, ingles:m.ingles, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
+        if(j.status===1 && j.product){ const p=j.product; const m=melhorNomeOff(p); if(m) return { name:m.nome, traduzido:m.traduzido, ingles:m.ingles, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim(), image:(p.image_front_small_url||p.image_front_url||p.image_url||null) }; }
       }catch{ /* timeout/CORS/erro */ }
       return null;
     }
+    // Guarda a resposta: o mesmo codigo e consultado mais do que uma vez
+    // (nome melhor + foto) e nao vale a pena bater duas vezes no servidor.
+    const _offCache = new Map();
     async function offLookup(ean){
+      if(_offCache.has(ean)) return _offCache.get(ean);
       const res = await Promise.all(OFF_HOSTS.map(h=>offHost(h,ean)));
-      return res.find(r=>r) || null; // prefere comida (1.ª da lista)
+      const r = res.find(x=>x) || null; // prefere comida (1.ª da lista)
+      _offCache.set(ean, r);
+      return r;
+    }
+
+    /* Se o produto nao tem foto na Prico, oferece a do Open Food Facts. */
+    async function oferecerFotoOff(ean){
+      try{
+        const off = await offLookup(ean);
+        if(off && off.image && !fotoAtual && !fotoUrl){ fotoOff = off.image; mostrarFoto(); }
+      }catch{ /* sem rede: fica sem oferta */ }
     }
 
     function showStatus(cls, html){ $('status').className=cls; $('status').innerHTML=html; }
-    function fill(o){ $('name').value=o.name||''; $('brand').value=o.brand||''; $('qty').value=o.quantity||''; $('cat').value=o.category||''; }
+    function fill(o){ $('name').value=o.name||''; $('brand').value=o.brand||''; $('qty').value=o.quantity||''; $('cat').value=o.category||'';
+      fotoAtual = o.image_url || null; mostrarFoto(); }
 
     const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas frescas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
     function guessCat(name){ const n=deburr(name); for(const [k,c] of CATKW) if(n.includes(k)) return c; return ''; }
@@ -655,7 +705,7 @@
     async function searchByName(name){
       const words = deburr(name).split(/\s+/).filter(w=>w.length>=4).slice(0,4);
       if(!words.length) return [];
-      let q = sb.from('products').select('id,name,brand,quantity,category,ean').limit(5);
+      let q = sb.from('products').select('id,name,brand,quantity,category,ean,image_url').limit(5);
       for(const w of words) q = q.ilike('search_norm','%'+w.replace(/[%,()]/g,' ')+'%');
       const { data } = await q;
       return data || [];
@@ -706,6 +756,8 @@
       const ean=($('ean').value||'').replace(/\D/g,'');
       existing=null; window._dups=[];
       limparSugestaoNome();
+      // A foto colada NAO pode passar para o produto seguinte.
+      fotoUrl=null; fotoAtual=null; fotoOff=null; mostrarFoto();
       if(ean.length<8){ showStatus('err','EAN inválido (8 a 13 dígitos).'); $('form').style.display='none'; return; }
       showStatus('ok','A procurar…');
       try {
@@ -719,6 +771,7 @@
         // Mesmo existindo, vale a pena perguntar ao Open Food Facts: o nome
         // guardado pode ser pior (em espanhol, ou so a variante tipo "Mini").
         proporNomeMelhor(ean, prod.name);
+        if(!prod.image_url) oferecerFotoOff(ean);
         return;
       }
       // 2) sem EAN na app -> identificar nas bases abertas
@@ -726,6 +779,7 @@
       const offName = off ? off.name : '';
       if(off) fill({...off, category: guessCat(off.name)});
       else fill({name:'',brand:'',quantity:'',category:''});
+      if(off && off.image){ fotoOff = off.image; mostrarFoto(); }
       // 3) procurar por NOME possíveis existentes (que estejam sem EAN)
       const dups = offName ? await searchByName(offName) : [];
       if(dups.length){
@@ -807,7 +861,7 @@
         $('ean').value=''; $('form').style.display='none'; $('status').className='';
         // A CADEIA fica escolhida: a seguir vem quase sempre outro produto da mesma loja.
         for(const i of [1,2,3]){ $('price'+i).value=''; $('promo'+i).value=''; $('ends'+i).value=''; }
-        fotoUrl=null; mostrarFoto(); limparSugestaoNome();
+        fotoUrl=null; fotoAtual=null; fotoOff=null; mostrarFoto(); limparSugestaoNome();
         $('titulo').value=''; $('name').value=''; $('brand').value=''; $('qty').value=''; $('cat').value='';
         existing=null; $('ean').focus();
       }catch(e){ $('msg').className='err2'; $('msg').textContent='Erro: '+(e.message||e); }
@@ -840,6 +894,11 @@
       $('brand').addEventListener('blur', normalizarMarca);
       $('fotoCola').addEventListener('paste', aoColarFoto);
       $('fotoTirar').addEventListener('click', ()=>{ fotoUrl=null; mostrarFoto(); });
+      $('fotoUsarOff').addEventListener('click', ()=>{
+        if(!fotoOff) return;
+        fotoUrl = fotoOff;
+        mostrarFoto('\u2713 Foto do Open Food Facts escolhida.');
+      });
       $('titulo').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); aplicarTitulo(); } });
       // Aviso (nao bloqueia) quando o codigo colado nao bate certo
       $('ean').addEventListener('input', ()=>{
