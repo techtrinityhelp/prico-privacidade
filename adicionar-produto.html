@@ -67,6 +67,7 @@
         <span style="display:block;margin-top:4px;color:#64748b;font-size:.85rem">Para escrever à mão, usa o campo <b>Nome</b> aqui em baixo.</span>
       </label>
       <label>Nome<input id="name" type="text" /></label>
+      <div id="sugNome" style="display:none;margin:-4px 0 8px;padding:8px 10px;border-radius:8px;background:#f0f7f1;border-left:4px solid var(--green);font-size:.9rem"></div>
       <div class="row2">
         <div><label>Marca<input id="brand" type="text" /></label></div>
         <div><label>Quantidade<input id="qty" type="text" placeholder="1 L · 500 g · 4 x 200 ml" /></label></div>
@@ -157,6 +158,32 @@
     }
 
 
+
+
+    /* Compara o nome guardado com o melhor que o OFF tem (ja traduzido) e, se for
+       diferente, oferece-o a um clique. Serve sobretudo para arrumar os nomes
+       antigos que ficaram em espanhol ou so com a variante ("Mini", "Light"). */
+    async function proporNomeMelhor(ean, nomeAtual){
+      const cx=$('sugNome'); if(!cx) return;
+      cx.style.display='none'; cx.innerHTML='';
+      try{
+        const off=await offLookup(ean);
+        if(!off || !off.name) return;
+        const igual = deburr(off.name).replace(/[^a-z0-9]/g,'') === deburr(nomeAtual||'').replace(/[^a-z0-9]/g,'');
+        if(igual) return;
+        cx.innerHTML = '✨ O Open Food Facts tem: <b>'+off.name+'</b>'
+          + (off.traduzido ? ' <span style="color:#64748b">(traduzido do espanhol)</span>' : '')
+          + (off.ingles ? ' <span style="color:#b45309">(em inglês — convém traduzir)</span>' : '')
+          + ' <button type="button" id="usarSug" class="sec" style="margin-left:8px;padding:4px 10px;font-size:.85rem">Usar este nome</button>';
+        cx.style.display='block';
+        $('usarSug').addEventListener('click', ()=>{
+          $('name').value = off.name;
+          if(off.brand && !$('brand').value.trim()) { $('brand').value = off.brand; normalizarMarca(); }
+          if(off.quantity && !$('qty').value.trim()) $('qty').value = off.quantity;
+          cx.style.display='none';
+        });
+      }catch(e){ /* sem sugestao, segue */ }
+    }
 
     /* --- FOTO: colar a imagem copiada do site da loja ---------------------
        Dois caminhos: (a) "Copiar imagem" poe os BYTES na area de transferencia
@@ -336,6 +363,22 @@
       return s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
     }
 
+    /*
+     * O OFF tem muitos nomes em INGLES. Nao os traduzimos (a app e portuguesa e um
+     * dicionario ingles seria outro trabalho), mas tambem nao os podemos tratar como
+     * se fossem portugueses: sao penalizados na escolha e assinalados, para nao
+     * entrarem no catalogo sem alguem reparar.
+     */
+    const MARCADORES_EN = new Set([
+      'with', 'and', 'the', 'of', 'free', 'low', 'whole', 'wheat', 'enriched',
+      'iron', 'sugar', 'salt', 'flavour', 'flavor', 'cookies', 'crunchy',
+      'without', 'made', 'contains', 'sliced', 'spread', 'chunks', 'creamy',
+    ]);
+    function pareceIngles(t){
+      const ws = deburr(t||'').split(/[^a-z0-9]+/).filter(Boolean);
+      return ws.some(w=>MARCADORES_EN.has(w));
+    }
+
     /* Escolhe o nome MAIS COMPLETO entre os idiomas do OFF (o portugues e muitas
        vezes o pior) e traduz se vier em espanhol. */
     function melhorNomeOff(p){
@@ -347,9 +390,11 @@
         if(nomeSoVariante(t)) continue;                 // "Mini", "Original"...
         const emPt=traduzirEsPt(t);
         const traduziu = emPt!==t;
+        const ingles = !traduziu && pareceIngles(t);
         const palavras = t.split(/[^A-Za-zÀ-ÿ0-9]+/).filter(w=>w.length>=3 && !/^[0-9]+$/.test(w)).length;
-        const n = palavras + (traduziu?0:0.5);
-        if(n>nota){ nota=n; melhor={nome:emPt, traduzido:traduziu}; }
+        // portugues > espanhol traduzido > ingles (que fica por traduzir)
+        const n = palavras + (ingles ? -1 : (traduziu ? 0 : 0.5));
+        if(n>nota){ nota=n; melhor={nome:emPt, traduzido:traduziu, ingles}; }
       }
       return melhor;
     }
@@ -391,16 +436,40 @@
     }
 
     // --- Marcas ja existentes na base, para separar o titulo colado ---
-    let MARCAS = new Set();
+    let MARCAS = new Set();          // marcas em minusculas, p/ separar o titulo
+    let MARCAS_GRAFIA = new Map();   // chave sem pontuacao -> grafia JA usada na base
+    const chaveMarca = (s) => deburr(s).replace(/[^a-z0-9]/g,'');
     async function carregarMarcas(){
-      const vistas=new Set();
+      const vistas=new Set(), contagem=new Map();
       for(let f=0;;f+=1000){
         const { data } = await sb.from('products').select('brand').range(f,f+999);
         if(!data || !data.length) break;
-        data.forEach(r=>{ if(r.brand && r.brand.trim()) vistas.add(deburr(r.brand.trim())); });
+        data.forEach(r=>{
+          const b=(r.brand||'').trim(); if(!b) return;
+          vistas.add(deburr(b));
+          const k=chaveMarca(b); if(!k) return;
+          if(!contagem.has(k)) contagem.set(k,new Map());
+          const m=contagem.get(k); m.set(b,(m.get(b)||0)+1);
+        });
         if(data.length<1000) break;
       }
       MARCAS = vistas;
+      // Para cada marca, fica a grafia MAIS USADA na base (ja uniformizada).
+      MARCAS_GRAFIA = new Map();
+      for(const [k,m] of contagem){
+        const melhor=[...m.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+        MARCAS_GRAFIA.set(k, melhor);
+      }
+    }
+
+    /* Se a marca escrita ja existe na base, adota a grafia de la ("gullon" ->
+       "Gullón", "coca cola" -> "Coca-Cola"). Evita criar variantes novas da
+       mesma marca, que partem a pesquisa e enchem o seletor. */
+    function normalizarMarca(){
+      const v=$('brand').value.trim();
+      if(!v) return;
+      const boa=MARCAS_GRAFIA.get(chaveMarca(v));
+      $('brand').value = (boa && boa!==v) ? boa : titleCasePT(v);
     }
 
     /* Separa um titulo copiado da loja em nome / marca / quantidade.
@@ -442,7 +511,7 @@
         const r=await fetch('https://'+h+'/api/v2/product/'+ean+'.json?fields=product_name,product_name_pt,product_name_es,product_name_en,generic_name,generic_name_pt,generic_name_es,brands,quantity',{signal:ctrl.signal});
         clearTimeout(t);
         const j=await r.json();
-        if(j.status===1 && j.product){ const p=j.product; const m=melhorNomeOff(p); if(m) return { name:m.nome, traduzido:m.traduzido, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
+        if(j.status===1 && j.product){ const p=j.product; const m=melhorNomeOff(p); if(m) return { name:m.nome, traduzido:m.traduzido, ingles:m.ingles, brand:(p.brands||'').split(',')[0].trim(), quantity:(p.quantity||'').trim() }; }
       }catch{ /* timeout/CORS/erro */ }
       return null;
     }
@@ -528,7 +597,11 @@
         existing=prod; fill(prod);
         const pr = await pricesFor(prod.id);
         showStatus('ok','✓ <b>Já existe na Prico</b> (por EAN): '+prod.name+'. Podes corrigir e/ou adicionar preços — atualiza, não duplica.'+pr);
-        $('form').style.display='block'; $('name').focus(); return;
+        $('form').style.display='block'; $('name').focus();
+        // Mesmo existindo, vale a pena perguntar ao Open Food Facts: o nome
+        // guardado pode ser pior (em espanhol, ou so a variante tipo "Mini").
+        proporNomeMelhor(ean, prod.name);
+        return;
       }
       // 2) sem EAN na app -> identificar nas bases abertas
       const off=await offLookup(ean);
@@ -630,6 +703,7 @@
       $('name').value = fixName(r.name);
       if(r.brand) $('brand').value = r.brand;
       if(r.quantity) $('qty').value = r.quantity;
+      normalizarMarca();
       if(!$('cat').value){ const c = guessCategory($('name').value); if(c) $('cat').value = c; }
       $('form').style.display='block';
       $('titulo').value='';            // atalho de uma vez: o que conta e o campo Nome
@@ -645,6 +719,7 @@
       $('cat').innerHTML='<option value="">— categoria —</option>'+CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
       carregarMarcas();
       $('titulo').addEventListener('paste', ()=>setTimeout(aplicarTitulo,0));
+      $('brand').addEventListener('blur', normalizarMarca);
       $('fotoCola').addEventListener('paste', aoColarFoto);
       $('fotoTirar').addEventListener('click', ()=>{ fotoUrl=null; mostrarFoto(); });
       $('titulo').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); aplicarTitulo(); } });
