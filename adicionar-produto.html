@@ -691,7 +691,10 @@
       fotoAtual = o.image_url || null; mostrarFoto(); }
 
     const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas frescas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
-    function guessCat(name){ const n=deburr(name); for(const [k,c] of CATKW) if(n.includes(k)) return c; return ''; }
+    /* Havia duas funcoes de categoria e esta comparava PEDACOS de texto:
+       "aguardente" caia em Aguas, "bolacha" em Cha. A boa (guessCategory)
+       compara palavras inteiras. Fica so uma, para nao voltar a divergir. */
+    const guessCat = guessCategory;
 
     const euro = (c) => (c/100).toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
 
