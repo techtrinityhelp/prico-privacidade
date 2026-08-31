@@ -551,6 +551,49 @@
       return null;
     }
 
+    /* ---------------------------------------------------------------
+       CONVENCAO UNICA DAS QUANTIDADES: "500 g", "1,5 L", "6 un", "4 x 200 ml"
+       Numero, espaco, unidade em minusculas — menos o litro, que e "L"
+       maiusculo para nao se confundir com o algarismo 1.
+
+       Sem isto o catalogo enchia-se de "200g", "4x300g", "1 l" e "200 gram" —
+       eram 859 produtos fora da convencao, e o pack_units saia errado (um
+       "200 gram" era lido como um pacote de 200 unidades).
+
+       As regras dificeis, que valem a pena explicar:
+         "480 g (4 x 120 g)" -> "4 x 120 g"  (o parentesis e o PACK)
+         "385 g (270 g)"     -> "385 g"      (o parentesis e o ESCORRIDO:
+                                              fica o liquido, o de fora)
+         "300 g / 291 ml"    -> "300 g"      (dupla medida: fica a primeira)
+       E ha sinais que PARECEM um "x" e nao sao: o simbolo de multiplicacao (×)
+       e ate um "х" cirilico, que vem copiado de sites e e indistinguivel a
+       olho nu.
+       --------------------------------------------------------------- */
+    function normalizarQuantidade(bruto){
+      let s = String(bruto||'').trim();
+      if(!s) return '';
+      s = s.replace(/[×хХ✕✖]/g, 'x');
+      s = s
+        .replace(/\bgramas?\b/gi,'g').replace(/\bgrams?\b/gi,'g').replace(/\bgr\b/gi,'g')
+        .replace(/\bquilos?\b/gi,'kg').replace(/\bkgs\b/gi,'kg')
+        .replace(/\blitros?\b/gi,'L').replace(/\blitres?\b/gi,'L').replace(/\blts?\b/gi,'L')
+        .replace(/\bmililitros?\b/gi,'ml').replace(/\bcentilitros?\b/gi,'cl')
+        .replace(/\bunidades?\b/gi,'un').replace(/\bunids?\b/gi,'un').replace(/\buns\b/gi,'un')
+        .replace(/(\d)\s*u\b/gi,'$1 un');
+      const par = s.match(/^(.+?)\s*\(\s*([^()]+?)\s*\)\s*$/);
+      if(par) s = /[x*]/i.test(par[2]) ? par[2] : par[1];
+      if(s.includes('/')) s = s.split('/')[0].trim();
+      s = s.replace(/\s+/g,' ').trim();
+      const m = s.match(/^(?:(\d+)\s*[x*]\s*)?(\d+(?:[.,]\d+)?)\s*(kg|mg|g|ml|cl|dl|lt|l|un)$/i);
+      // Nao reconhecido -> devolve-se o que la estava. Mais vale uma
+      // quantidade estranha escrita pela pessoa do que uma inventada.
+      if(!m) return String(bruto||'').trim();
+      const pack = m[1] ? (parseInt(m[1],10) + ' x ') : '';
+      const num = m[2].replace('.', ',').replace(/,0+$/,'');
+      const u = m[3].toLowerCase();
+      return pack + num + ' ' + (u === 'l' || u === 'lt' ? 'L' : u);
+    }
+
     // --- Digito de controlo do codigo de barras (apanha numeros mal copiados) ---
     function gtinChecksumOk(code){
       const d=String(code||'').replace(/\D/g,'');
@@ -808,7 +851,7 @@
       $('name').value=name;
       const ean=($('ean').value||'').replace(/\D/g,'')||null;
       const brand=titleCasePT($('brand').value.trim())||null;
-      const quantity=$('qty').value.trim()||null;
+      const quantity=normalizarQuantidade($('qty').value)||null;
       const category=$('cat').value||null;
       $('add').disabled=true;
       try{
@@ -920,6 +963,13 @@
       $('titulo').addEventListener('paste', ()=>setTimeout(aplicarTitulo,0));
       $('brand').addEventListener('blur', normalizarMarca);
       $('fotoCola').addEventListener('paste', aoColarFoto);
+      // Normaliza assim que se sai do campo: a pessoa ve logo o formato final
+      // em vez de descobrir depois que ficou diferente do que escreveu.
+      $('qty').addEventListener('blur', ()=>{
+        const antes = $('qty').value;
+        const depois = normalizarQuantidade(antes);
+        if(depois !== antes.trim()) $('qty').value = depois;
+      });
       $('fotoTirar').addEventListener('click', ()=>{ fotoUrl=null; mostrarFoto(); });
       $('fotoUsarOff').addEventListener('click', ()=>{
         if(!fotoOff) return;
