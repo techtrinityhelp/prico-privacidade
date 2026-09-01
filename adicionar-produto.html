@@ -605,30 +605,92 @@
 
     // --- Adivinhar categoria pelo NOME (mesma logica da app: palavras inteiras,
     //     nunca pedacos de texto, senao "oriGINal" virava bebida alcoolica) ---
+    /* CATEGORIAS-INICIO (gerado por sincronizar-ferramenta-web.js) */
+    // NÃO editar à mão: é gerado a partir de mobile/src/types/db.ts, para a
+    // ferramenta e a app decidirem sempre a mesma coisa. Correr
+    // "node sincronizar-ferramenta-web.js" depois de mexer nas categorias.
     const CAT_KW = [
-      [['agua','aguas'],'Águas'],
-      [['sumo','sumos','refrigerante','refrigerantes','cola','pepsi','compal','nectar'],'Refrigerantes e sumos'],
-      [['cafe','cha','infusao','infusoes','capsulas'],'Café, chá e infusões'],
-      [['vinho','vinhos','cerveja','cervejas','whisky','gin','licor','vodka','sidra'],'Bebidas alcoólicas e garrafeira'],
-      [['leite','manteiga','ovos','natas','queijo','queijos'],'Laticínios e ovos'],
-      [['iogurte','iogurtes','pudim','gelatina','kefir'],'Iogurtes e sobremesas frescas'],
-      [['fiambre','chourico','presunto','salsichas','mortadela','paio'],'Charcutaria'],
-      [['pao','bolo','bolos','croissant','baguete','broa','donut'],'Padaria e pastelaria'],
-      [['bolacha','bolachas','cereais','flocos','tostas','muesli','granola','aveia'],'Bolachas e cereais'],
-      [['chocolate','gomas','bombom','bombons','caramelos'],'Doçaria e chocolates'],
-      [['gelado','gelados','congelado','congelados'],'Congelados'],
-      [['batatas','snack','snacks','aperitivos','pipocas','tortitas'],'Snacks e aperitivos'],
-      [['pizza','lasanha','refeicao','sandes','wraps'],'Refeições prontas'],
-      [['arroz','massa','massas','azeite','oleo','farinha','acucar','sal','atum','conserva'],'Mercearia'],
-      [['detergente','lixivia','amaciador','limpeza'],'Limpeza do lar'],
-      [['champo','shampoo','sabonete','desodorizante','pasta'],'Higiene e beleza'],
-      [['fralda','fraldas'],'Bebé'], [['racao'],'Animais'],
+      ['tira gordura',"Limpeza do lar"], ['mistolin',"Limpeza do lar"], ['multiusos',"Limpeza do lar"], ['lava tudo',"Limpeza do lar"],
+      ['papel higienico',"Limpeza do lar"], ['rolo de cozinha',"Limpeza do lar"], ['rolo de cozinha',"Limpeza do lar"], ['papel de cozinha',"Limpeza do lar"],
+      ['sal de banho',"Higiene e beleza"], ['sais de banho',"Higiene e beleza"], ['gel de banho',"Higiene e beleza"], ['pasta dent',"Higiene e beleza"],
+      ['batata frita',"Snacks e aperitivos"], ['batatas fritas',"Snacks e aperitivos"], ['manteiga de amendoim',"Mercearia"], ['creme de amendoim',"Mercearia"],
+      ['manteiga amendoim',"Mercearia"], ['manteiga 100% amendoim',"Mercearia"], ['manteiga de caju',"Mercearia"], ['manteiga de amendoa',"Mercearia"],
+      ['massa folhada',"Padaria e pastelaria"], ['massa mae',"Padaria e pastelaria"], ['barra de cereais',"Bolachas e cereais"], ['barras de cereais',"Bolachas e cereais"],
+      ['flocos de aveia',"Bolachas e cereais"], ['farinha de aveia',"Mercearia"], ['farinha aveia',"Mercearia"], ['leite condensado',"Mercearia"],
+      ['leite creme',"Iogurtes e sobremesas frescas"], ['bebida vegetal',"Bebidas vegetais"], ['bebida de aveia',"Bebidas vegetais"], ['bebida de soja',"Bebidas vegetais"],
+      ['bebida de amendoa',"Bebidas vegetais"], ['bebida de arroz',"Bebidas vegetais"], ['bebida de coco',"Bebidas vegetais"], ['bebida de caju',"Bebidas vegetais"],
+      ['bebida de avela',"Bebidas vegetais"], ['bebida aveia',"Bebidas vegetais"], ['bebida soja',"Bebidas vegetais"], ['bebida amendoa',"Bebidas vegetais"],
+      ['bebida arroz',"Bebidas vegetais"], ['bebida coco',"Bebidas vegetais"], ['bebida caju',"Bebidas vegetais"], ['bebida avela',"Bebidas vegetais"],
+      ['bebida vegetal',"Bebidas vegetais"], ['chocapic',"Bolachas e cereais"], ['estrelitas',"Bolachas e cereais"], ['special k',"Bolachas e cereais"],
+      ['corn flakes',"Bolachas e cereais"], ['frosties',"Bolachas e cereais"], ['all bran',"Bolachas e cereais"], ['krave',"Bolachas e cereais"],
+      ['molho de soja',"Mercearia"], ['polpa',"Mercearia"], ['passata',"Mercearia"], ['tomate pelado',"Mercearia"],
+      ['tomate triturado',"Mercearia"], ['alho moido',"Mercearia"], ['alho granulado',"Mercearia"], ['piri piri',"Mercearia"],
+      ['sal marinho',"Mercearia"], ['sal fino',"Mercearia"], ['sal grosso',"Mercearia"], ['acucar branco',"Mercearia"],
+      ['acucar amarelo',"Mercearia"], ['acucar mascavado',"Mercearia"], ['acucar em po',"Mercearia"], ['red bull',"Refrigerantes e sumos"],
+      ['ice tea',"Refrigerantes e sumos"], ['agua de coco',"Refrigerantes e sumos"], ['gelado',"Congelados"], ['congelado',"Congelados"],
+      ['douradinhos',"Congelados"], ['panados',"Congelados"], ['nuggets',"Congelados"], ['iogurte',"Iogurtes e sobremesas frescas"],
+      ['kefir',"Iogurtes e sobremesas frescas"], ['skyr',"Iogurtes e sobremesas frescas"], ['pudim',"Iogurtes e sobremesas frescas"], ['gelatina',"Iogurtes e sobremesas frescas"],
+      ['natilha',"Iogurtes e sobremesas frescas"], ['mousse',"Iogurtes e sobremesas frescas"], ['sobremesa',"Iogurtes e sobremesas frescas"], ['queijo',"Queijos"],
+      ['bolacha',"Bolachas e cereais"], ['cereais',"Bolachas e cereais"], ['muesli',"Bolachas e cereais"], ['granola',"Bolachas e cereais"],
+      ['digestive',"Bolachas e cereais"], ['flocos',"Bolachas e cereais"], ['tostas',"Bolachas e cereais"], ['barista',"Bebidas vegetais"],
+      ['croissant',"Padaria e pastelaria"], ['pao',"Padaria e pastelaria"], ['bolo',"Padaria e pastelaria"], ['baguete',"Padaria e pastelaria"],
+      ['broa',"Padaria e pastelaria"], ['donut',"Padaria e pastelaria"], ['chocolate de leite',"Doçaria e chocolates"], ['leite',"Laticínios e ovos"],
+      ['manteiga',"Laticínios e ovos"], ['ovos',"Laticínios e ovos"], ['natas',"Laticínios e ovos"], ['fiambre',"Charcutaria"],
+      ['chouri',"Charcutaria"], ['presunto',"Charcutaria"], ['salsich',"Charcutaria"], ['mortadela',"Charcutaria"],
+      ['fatias f',"Charcutaria"], ['sand',"Refeições prontas"], ['sandes',"Refeições prontas"], ['sandwich',"Refeições prontas"],
+      ['sanduich',"Refeições prontas"], ['lanche',"Refeições prontas"], ['misto',"Refeições prontas"], ['pizza',"Refeições prontas"],
+      ['refeicao',"Refeições prontas"], ['tubo',"Snacks e aperitivos"], ['snack',"Snacks e aperitivos"], ['tortilha',"Snacks e aperitivos"],
+      ['pipoca',"Snacks e aperitivos"], ['cones',"Snacks e aperitivos"], ['agua',"Águas"], ['sumo',"Refrigerantes e sumos"],
+      ['refriger',"Refrigerantes e sumos"], ['coca',"Refrigerantes e sumos"], ['pepsi',"Refrigerantes e sumos"], ['nestea',"Refrigerantes e sumos"],
+      ['monster',"Refrigerantes e sumos"], ['energy',"Refrigerantes e sumos"], ['frize',"Refrigerantes e sumos"], ['compal',"Refrigerantes e sumos"],
+      ['cafe',"Café, chá e infusões"], ['cha',"Café, chá e infusões"], ['infusao',"Café, chá e infusões"], ['vinho',"Bebidas alcoólicas e garrafeira"],
+      ['cerveja',"Bebidas alcoólicas e garrafeira"], ['whisky',"Bebidas alcoólicas e garrafeira"], ['gin',"Bebidas alcoólicas e garrafeira"], ['licor',"Bebidas alcoólicas e garrafeira"],
+      ['vodka',"Bebidas alcoólicas e garrafeira"], ['soja',"Bebidas vegetais"], ['massa',"Mercearia"], ['esparguete',"Mercearia"],
+      ['macarrao',"Mercearia"], ['macarronete',"Mercearia"], ['penne',"Mercearia"], ['fusilli',"Mercearia"],
+      ['lasanha',"Mercearia"], ['couscous',"Mercearia"], ['noodles',"Mercearia"], ['talharim',"Mercearia"],
+      ['tagliatelle',"Mercearia"], ['linguine',"Mercearia"], ['espirais',"Mercearia"], ['cotovelo',"Mercearia"],
+      ['farfalle',"Mercearia"], ['aletria',"Mercearia"], ['rigatoni',"Mercearia"], ['arroz',"Mercearia"],
+      ['farinha',"Mercearia"], ['vinagre',"Mercearia"], ['azeite',"Mercearia"], ['oleo',"Mercearia"],
+      ['atum',"Mercearia"], ['sardinha',"Mercearia"], ['cavala',"Mercearia"], ['conserva',"Mercearia"],
+      ['feijao',"Mercearia"], ['grao',"Mercearia"], ['lentilha',"Mercearia"], ['ervilha',"Mercearia"],
+      ['milho',"Mercearia"], ['cogumelo',"Mercearia"], ['ketchup',"Mercearia"], ['maionese',"Mercearia"],
+      ['mostarda',"Mercearia"], ['molho',"Mercearia"], ['azeitona',"Mercearia"], ['compota',"Mercearia"],
+      ['caldo',"Mercearia"], ['oregao',"Mercearia"], ['louro',"Mercearia"], ['colorau',"Mercearia"],
+      ['especiaria',"Mercearia"], ['gomas',"Doçaria e chocolates"], ['bombom',"Doçaria e chocolates"], ['bombons',"Doçaria e chocolates"],
+      ['detergente',"Limpeza do lar"], ['lixivia',"Limpeza do lar"], ['limpeza',"Limpeza do lar"], ['amaciador',"Limpeza do lar"],
+      ['guardanapo',"Limpeza do lar"], ['lenco',"Limpeza do lar"], ['champo',"Higiene e beleza"], ['shampoo',"Higiene e beleza"],
+      ['sabonete',"Higiene e beleza"], ['desodor',"Higiene e beleza"], ['fralda',"Bebé"], ['racao',"Animais"],
+      ['frango',"Talho (carne)"], ['peru',"Talho (carne)"], ['porco',"Talho (carne)"], ['vaca',"Talho (carne)"],
+      ['novilho',"Talho (carne)"], ['borrego',"Talho (carne)"], ['coelho',"Talho (carne)"], ['bife',"Talho (carne)"],
+      ['costeleta',"Talho (carne)"], ['entrecosto',"Talho (carne)"], ['febras',"Talho (carne)"], ['lombo',"Talho (carne)"],
+      ['entremeada',"Talho (carne)"], ['picada',"Talho (carne)"], ['bacalhau',"Peixaria (peixe)"], ['salmao',"Peixaria (peixe)"],
+      ['pescada',"Peixaria (peixe)"], ['polvo',"Peixaria (peixe)"], ['lulas',"Peixaria (peixe)"], ['camarao',"Peixaria (peixe)"],
+      ['gambas',"Peixaria (peixe)"], ['dourada',"Peixaria (peixe)"], ['robalo',"Peixaria (peixe)"], ['marisco',"Peixaria (peixe)"],
+      ['delicias do mar',"Peixaria (peixe)"], ['papa',"Bebé"], ['boiao',"Bebé"], ['biberao',"Bebé"],
+      ['chupeta',"Bebé"], ['toalhitas de bebe',"Bebé"], ['leite infantil',"Bebé"], ['para gato',"Animais"],
+      ['para gatos',"Animais"], ['para cao',"Animais"], ['para caes',"Animais"], ['areia para gato',"Animais"],
+      ['pilha',"Casa e bazar"], ['pilhas',"Casa e bazar"], ['lampada',"Casa e bazar"], ['vela',"Casa e bazar"],
+      ['papel aluminio',"Casa e bazar"], ['pelicula aderente',"Casa e bazar"], ['papel vegetal',"Casa e bazar"], ['fruta',"Fruta e legumes"],
+      ['legume',"Fruta e legumes"], ['tomate',"Fruta e legumes"], ['cebola',"Fruta e legumes"], ['alface',"Fruta e legumes"],
+      ['banana',"Fruta e legumes"], ['laranja',"Fruta e legumes"], ['batata',"Fruta e legumes"], ['chocolate',"Doçaria e chocolates"],
+      ['cacau',"Doçaria e chocolates"], ['amendoim',"Snacks e aperitivos"], ['amendoins',"Snacks e aperitivos"], ['mel',"Mercearia"],
+      ['canela',"Mercearia"], ['prot',"Laticínios e ovos"], ['protein',"Laticínios e ovos"]
     ];
+    /* Mesma regra da app (guessCategory em db.ts): PALAVRA INTEIRA, com plural
+       e prefixo a partir de 5 letras — nunca pedaço de texto, senão
+       "aguardente" caía em Águas. Expressões com espaço comparam-se inteiras. */
     function guessCategory(nome){
-      const palavras = deburr(nome||'').split(/[^a-z0-9]+/).filter(Boolean);
-      for(const [chaves,cat] of CAT_KW){ if(palavras.some(w=>chaves.includes(w))) return cat; }
+      const n = deburr(nome||'');
+      const palavras = n.split(/[^a-z0-9]+/).filter(Boolean);
+      for(const [chave,cat] of CAT_KW){
+        const k = deburr(chave).trim();
+        if(!k) continue;
+        if(k.includes(' ')){ if(n.includes(k)) return cat; continue; }
+        if(palavras.some(w => w===k || w===k+'s' || w===k+'es' || (k.length>=5 && w.startsWith(k)))) return cat;
+      }
       return '';
     }
+    /* CATEGORIAS-FIM */
 
     // --- Marcas ja existentes na base, para separar o titulo colado ---
     let MARCAS = new Set();          // marcas em minusculas, p/ separar o titulo
@@ -733,11 +795,6 @@
     function fill(o){ $('name').value=o.name||''; $('brand').value=o.brand||''; $('qty').value=o.quantity||''; $('cat').value=o.category||'';
       fotoAtual = o.image_url || null; mostrarFoto(); }
 
-    const CATKW=[['agua','Águas'],['sumo','Refrigerantes e sumos'],['refriger','Refrigerantes e sumos'],['leite','Laticínios e ovos'],['manteiga','Laticínios e ovos'],['ovos','Laticínios e ovos'],['iogurte','Iogurtes e sobremesas frescas'],['queijo','Queijos'],['fiambre','Charcutaria'],['chouri','Charcutaria'],['pao','Padaria e pastelaria'],['bolacha','Bolachas e cereais'],['cereais','Bolachas e cereais'],['chocolate','Doçaria e chocolates'],['congelado','Congelados'],['gelado','Congelados'],['cafe','Café, chá e infusões'],['vinho','Bebidas alcoólicas e garrafeira'],['cerveja','Bebidas alcoólicas e garrafeira'],['detergente','Limpeza do lar'],['champo','Higiene e beleza'],['fralda','Bebé'],['racao','Animais']];
-    /* Havia duas funcoes de categoria e esta comparava PEDACOS de texto:
-       "aguardente" caia em Aguas, "bolacha" em Cha. A boa (guessCategory)
-       compara palavras inteiras. Fica so uma, para nao voltar a divergir. */
-    const guessCat = guessCategory;
 
     const euro = (c) => (c/100).toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
 
@@ -823,7 +880,7 @@
       // 2) sem EAN na app -> identificar nas bases abertas
       const off=await offLookup(ean);
       const offName = off ? off.name : '';
-      if(off) fill({...off, category: guessCat(off.name)});
+      if(off) fill({...off, category: guessCategory(off.name)});
       else fill({name:'',brand:'',quantity:'',category:''});
       if(off && off.image){ fotoOff = off.image; mostrarFoto(); }
       // 3) procurar por NOME possíveis existentes (que estejam sem EAN)
